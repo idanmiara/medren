@@ -1,0 +1,43 @@
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[project]
+name = "medren"
+version = "0.1.0"
+description = "MedRen - The Media Renamer"
+authors = [
+    { name = "Idan Miara", email = "idan@miara.com" }
+]
+readme = "README.md"
+requires-python = ">=3.9,<4.0"
+dependencies = [
+    "exifread (>=3.0.0,<4.0.0)",
+    "hachoir (>=3.3.0,<4.0.0)",
+    "pymediainfo (>=7.0.1,<8.0.0)",
+    "ffmpeg-python (>=0.2.0,<0.3.0)",
+    "freesimplegui (>=5.2.0.post1,<6.0.0)",
+    "pyperclip (>=1.8.2,<2.0.0)"
+]
+
+[tool.poetry]
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.3.5"
+ruff = "^0.3.3"
+
+[tool.ruff]
+line-length = 120
+target-version = "py39"
+select = ["E", "F", "I", "N", "W", "B", "UP", "PL", "RUF"]
+ignore = []
+
+[tool.ruff.isort]
+known-first-party = ["medren"]
+
+[project.scripts]
+medren = "medren.gui_fsg:main"
+
+[project.urls]
+Homepage = "https://github.com/idanmiara/medren"
+Repository = "https://github.com/idanmiara/medren.git"
