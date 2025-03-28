@@ -1,6 +1,6 @@
 import exifread
 import ffmpeg
-import FreeSimpleGUI as sg
+import FreeSimpleGUI as sg  # noqa: N813
 import hachoir
 import pymediainfo
 
