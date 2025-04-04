@@ -39,11 +39,6 @@ medren path/to/directory --prefix "IMG_" --template "{prefix}{datetime}{suffix}{
 - `--profile, -P`: Profile name
 - `--template, -t`: Initial template value
 - `--datetime-format, -f`: Initial datetime format value
-- `--separator-prefix, --sp`: Separator between prefix and index
-- `--separator-index, --si`: Separator between index and datetime
-- `--separator-datetime, --sd`: Separator between datetime and name
-- `--separator-name, --sn`: Separator between name and suffix
-- `--no-normalize`: Disable filename normalization
 
 ## License
 

@@ -55,6 +55,17 @@ class ExifClass:
     # @classmethod
     # def is_supported(cls, filename: Path):
     #     return filename.suffix.lower() in ['.jpg', '.jpeg', '.tif', '.tiff']
+    def get_exif_kwargs(self, none_value=None):
+        return dict(
+            make=self.make or none_value,
+            model=self.model or none_value,
+            x=self.x or none_value,
+            y=self.y or none_value,
+            w=self.w or none_value,
+            h=self.h or none_value,
+            lat=self.lat or none_value,
+            lon=self.lon or none_value,
+        )
 
 
 makers = {

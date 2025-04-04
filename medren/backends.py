@@ -6,8 +6,12 @@ from typing import Callable
 
 from medren.exif_process import ExifClass, ExifStat, extract_datetime_local, extract_datetime_utc, parse_offset
 
-image_ext_with_exif = ['.jpg', '.jpeg', '.tif', '.tiff']
+image_ext_with_exif = ['.jpg', '.tif']
 image_extensions = [*image_ext_with_exif, '.png', '.bmp', '.heic']
+extension_normalized = {
+    ".jpeg": ".jpg",
+    ".tiff": "tif",
+}
 
 def extract_piexif(path: str, logger: logging.Logger) -> ExifClass | None:
     from medren.backend_piexif import piexif_get, piexif_get_raw
@@ -92,7 +96,7 @@ def extract_ffmpeg(path: str, logger: logging.Logger) -> ExifClass | None:
 @dataclass
 class Backend:
     name: str
-    ext: list[str]
+    ext: list[str] | None
     func: Callable[[str, logging.Logger], ExifClass | None]
     dep: list[str]
 

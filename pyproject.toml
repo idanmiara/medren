@@ -4,7 +4,7 @@ build-backend = "poetry.core.masonry.api"
 
 [project]
 name = "medren"
-version = "0.2.0"
+version = "0.3.0"
 description = "MedRen - The Media Renamer"
 authors = [
     { name = "Idan Miara", email = "idan@miara.com" }
