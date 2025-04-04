@@ -55,6 +55,17 @@ class ExifClass:
     # @classmethod
     # def is_supported(cls, filename: Path):
     #     return filename.suffix.lower() in ['.jpg', '.jpeg', '.tif', '.tiff']
+    def exif_string(self, exif_format: str):
+        return exif_format.format(
+            make=self.make,
+            model=self.model,
+            x=self.x,
+            y=self.y,
+            w=self.w,
+            h=self.h,
+            lat=self.lat,
+            lon=self.lon,
+        )
 
 
 makers = {

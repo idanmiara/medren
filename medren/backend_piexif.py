@@ -60,7 +60,7 @@ def piexif_get(exif_dict: ExifRaw, ext: str, logger: logging.Logger) -> tuple[Ex
         exif = exif_dict.get('Exif', {})
 
         # Purpose: The original date and time when the photo was actually taken.
-        # Typically the most reliable indicator a photo captured timestamp, especially if directly from a camera.
+        # Typically the most reliable indicator a photo captured timestamp, especially if directly from a make.
         t_org = exif_decode(exif.get(piexif.ExifIFD.DateTimeOriginal))
         # Purpose: The date and time when the photo was digitized.
         # In digital cameras, this usually matches DateTimeOriginal, but in scanned images,can be the scanning date.
