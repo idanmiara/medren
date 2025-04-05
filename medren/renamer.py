@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from medren.backends import ExifClass, available_backends, backend_support, extension_normalized
-from medren.consts import DEFAULT_DATETIME_FORMAT, DEFAULT_TEMPLATE, DEFAULT_SEPERATOR, GENERIC_PATTERNS, \
+from medren.consts import DEFAULT_DATETIME_FORMAT, DEFAULT_TEMPLATE, DEFAULT_SEPARATOR, GENERIC_PATTERNS, \
     DEFAULT_EXIF_FORMAT
 
 logger = logging.getLogger(__name__)
@@ -32,7 +32,7 @@ class Renamer:
     datetime_format: str = field(default=DEFAULT_DATETIME_FORMAT)  # The format to use for the datetime
     exif_format: str = field(default=DEFAULT_EXIF_FORMAT)  # The format to use for the exif
     normalize: bool = field(default=True)  # Whether to normalize the filename
-    seperators: dict[str, str] | None = None
+    separators: dict[str, str] | None = None
     backends: list[str] | None = None  # The backends to use for metadata extraction
     recursive: bool = field(default=False)  # Whether to recursively search for files
 
@@ -69,7 +69,7 @@ class Renamer:
             name = re.sub(r'\\s+', '_', name)
         return name
 
-    def fetch_meta(self, path: str) -> ExifClass | None:
+    def fetch_meta(self, path: Path | str) -> ExifClass | None:
         """
         Extract datetime from file metadata.
 
@@ -116,7 +116,7 @@ class Renamer:
         return resolved_inputs
 
     def generate_renames(self, inputs: list[Path | str],
-                         resolve_names: bool = False) -> dict[str, tuple[Path, ExifClass]]:
+                         resolve_names: bool = False) -> dict[str, tuple[Path, ExifClass, str]]:
         """
         Generate a preview of file renames.
 
@@ -135,18 +135,17 @@ class Renamer:
         dt_and_paths = []
         for path in inputs:
             ex = self.fetch_meta(path)
-            if ex:
+            if ex is not None:
                 dt_and_paths.append((Path(path), ex))
                 logger.debug(f"Fetched datetime {ex.dt} ({ex.goff=}) for {path} using {ex.backend}")
         dt_and_paths.sort(key=lambda x: x[1].dt)
 
-        s = self.seperators.get('s', DEFAULT_SEPERATOR)
-        si = self.seperators.get('si', s) if re.search(r'{idx(?::\d+d)?}', self.template) else ''
-        sp = self.seperators.get('sp', s)
-        sn = self.seperators.get('sn', s) if '{name}' in self.template else ''
-        se = self.seperators.get('se', s) if '{exif}' in self.template else ''
-        sd = self.seperators.get('sd', s) if '{datetime}' in self.template else ''
-        exif_format=self.exif_format.format(s=s)
+        s = self.separators.get('s', DEFAULT_SEPARATOR)
+        si = self.separators.get('si', s) if re.search(r'{idx(?::\d+d)?}', self.template) else ''
+        sp = self.separators.get('sp', s)
+        sn = self.separators.get('sn', s) if '{name}' in self.template else ''
+        se = self.separators.get('se', s) if '{exif}' in self.template else ''
+        sd = self.separators.get('sd', s) if '{datetime}' in self.template else ''
 
         do_calc_sha256 = '{sha256}' in self.template
         for path, ex in dt_and_paths:
@@ -156,7 +155,7 @@ class Renamer:
                 suffix = self.suffix
                 ext = path.suffix
                 datetime_str = ex.dt.strftime(self.datetime_format)
-                exif_str = ex.exif_string(exif_format)
+                exif_str = ex.exif_string(self.exif_format, s=s)
                 sha256 = calc_sha256(path) if do_calc_sha256 else ''
                 # Format the new filename using the template
                 new_name = self.template.format(
@@ -166,7 +165,7 @@ class Renamer:
                     cname=clean_name,
                     suffix=suffix,
                     idx=idx,
-                    exif=exif,
+                    exif=exif_str,
                     sha256=sha256,
                     s=s,
                     si=si,
@@ -180,8 +179,8 @@ class Renamer:
 
                 # Remove trailing separators from the new filename
                 new_stem, ext = os.path.splitext(new_name)
-                for sep in self.seperators.values():
-                    if new_stem.endswith(sep):
+                for sep in self.separators.values():
+                    if sep and new_stem.endswith(sep):
                         new_stem = new_stem[:-len(sep)]
                 cnt = counter[new_name]
                 if cnt > 0:
@@ -190,7 +189,7 @@ class Renamer:
                 new_name = new_stem + new_name.suffix
 
                 counter[new_name] += 1
-                renames[path] = (new_name, ex)
+                renames[path] = (new_name, ex, exif_str)
                 idx += 1
             except Exception as e:
                 logger.error(f"Error generating preview for {path}: {e}")

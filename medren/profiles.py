@@ -1,39 +1,35 @@
-import dataclasses
+from dataclasses import dataclass
 from dataclasses import dataclass
 from enum import Enum, IntEnum, auto
 
-from medren.consts import DEFAULT_SEPERATOR, DEFAULT_TEMPLATE, DEFAULT_DATETIME_FORMAT, DEFAULT_PROFILE_NAME
+from medren.consts import DEFAULT_TEMPLATE, DEFAULT_DATETIME_FORMAT, DEFAULT_PROFILE_NAME
 
 
-def key_to_gui_key(key: str) -> str:
-    return f"-{key.upper().replace('_', '-')}-"
+class Separator(Enum):
+    separator = auto()
+    separator_index = auto()
+    separator_prefix = auto()
+    separator_exif = auto()
+    separator_name = auto()
+    separator_datetime = auto()
 
 
-class Separators(Enum):
-    seperator = auto()
-    seperator_index = auto()
-    seperator_prefix = auto()
-    seperator_make = auto()
-    seperator_name = auto()
-    seperator_datetime = auto()
-
-    def gui_key(self) -> str:
-        return key_to_gui_key(self.name)
-
-
-sep_abbr: dict[str, Separators] = {
-    's': Separators.seperator,
-    'si': Separators.seperator_index,
-    'sp': Separators.seperator_prefix,
-    'sc': Separators.seperator_make,
-    'sn': Separators.seperator_name,
-    'sd': Separators.seperator_datetime,
+sep_abbr: dict[str, Separator] = {
+    's': Separator.separator,
+    'si': Separator.separator_index,
+    'sp': Separator.separator_prefix,
+    'se': Separator.separator_exif,
+    'sn': Separator.separator_name,
+    'sd': Separator.separator_datetime,
 }
+assert set(sep_abbr.values()) == set(s for s in Separator)
+
 
 class Modes(IntEnum):
     file = 0
     dir = 1
     recursive = 2
+
 
 @dataclass
 class Profile:
@@ -44,11 +40,18 @@ class Profile:
     prefix: str = ''
     suffix: str = ''
     org_full_path: str = ''
-    seperators: dict[str, str] | None = None
-    # seperator: str = DEFAULT_SEPERATOR
-    # seperator_make: str = DEFAULT_SEPERATOR
-    # seperator_name: str = DEFAULT_SEPERATOR
-    # seperator_datetime: str = DEFAULT_SEPERATOR
+    separators: dict[str, str] | None = None
+
+    @classmethod
+    def expand_separators(cls, values):
+        s = values.pop('separators')
+        if s:
+            values.update(s)
+
+    def get_vars(self):
+        values = vars(self)
+        self.expand_separators(values)
+        return values
 
 
 profiles: dict[str, Profile] = {
@@ -70,12 +73,4 @@ profiles: dict[str, Profile] = {
     ),
 }
 
-# profile_keys_old = [
-#     '-PREFIX-', '-TEMPLATE-', '-DATETIME-FORMAT-', '-SUFFIX-', '-MODE-', '-NORMALIZE-', '-ORG-FULL-PATH-',
-#     '-SEPERATOR-PREFIX-', '-SEPERATOR-INDEX-', '-SEPERATOR-NAME-', '-SEPERATOR-DATETIME-'
-# ]
-# profile_keys_old.sort()
-profile_keys = [key_to_gui_key(k) for k in Profile.__annotations__]
-# profile_keys.sort()
-# assert profile_keys == profile_keys_old, f'{profile_keys=}, {profile_keys_old=}'
-
+profile_keys = [k for k in Profile.__annotations__]

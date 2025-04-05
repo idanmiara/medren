@@ -1,5 +1,5 @@
 DEFAULT_PROFILE_NAME = 'default'
-DEFAULT_SEPERATOR = '_'
+DEFAULT_SEPARATOR = '_'
 DEFAULT_TEMPLATE = '{datetime}{sd}{cname}{sn}{suffix}{ext}'
 DEFAULT_DATETIME_FORMAT = '%Y-%m-%d-%H-%M-%S'
 DEFAULT_EXIF_FORMAT = '{make}{s}{model}'

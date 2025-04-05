@@ -19,17 +19,17 @@ from medren.consts import (
     DEFAULT_DATETIME_FORMAT,
     DEFAULT_EXIF_FORMAT,
     DEFAULT_PROFILE_NAME,
-    DEFAULT_SEPERATOR,
+    DEFAULT_SEPARATOR,
     DEFAULT_TEMPLATE,
 )
-from medren.profiles import Modes, key_to_gui_key, profile_keys, sep_abbr, profiles
+from medren.profiles import Modes, profile_keys, sep_abbr, profiles, Profile
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 saved_keys = [
-    '-INPUTS-', '-PROFILE-',
+    'inputs', 'profile',
     ]
 
 # Settings file path
@@ -38,8 +38,9 @@ def load_settings(filename, is_profile=False) -> dict:
         if os.path.exists(filename):
             with open(filename) as f:
                 values = json.load(f)
-                filter = profile_keys if is_profile else saved_keys
-                values = {key: values[key] for key in filter}
+                filter_list = profile_keys if is_profile else saved_keys
+                values = {key: values[key] for key in filter_list}
+                Profile.expand_separators(values)
                 return values
     except Exception:
         pass
@@ -62,7 +63,7 @@ def load_profile(profile_name) -> dict:
     else:
         profile = profiles.get(profile_name)
         if profile:
-            return vars(profile)
+            return profile.get_vars()
     return {}
 
 
@@ -93,29 +94,18 @@ def main():  # noqa: PLR0915, PLR0912
     built_in_profile_names = list(profiles.keys())
     all_profile_names = sorted(set(saved_profile_names) | set(built_in_profile_names))
 
+    args_vars = vars(args)
     if args.profile:
-        loaded_values['-PROFILE-'] = args.profile
+        loaded_values['profile'] = args.profile
 
-    profile_name = loaded_values.get('-PROFILE-')
+    profile_name = loaded_values.get('profile')
     loaded_values = loaded_values | load_profile(profile_name)
+    loaded_values.update(args_vars)
 
-    if args.inputs:
-        loaded_values['-INPUTS-'] = list(args.inputs)
-    if args.prefix:
-        loaded_values['-PREFIX-'] = args.prefix
-    if args.suffix:
-        loaded_values['-SUFFIX-'] = args.suffix
-    if args.template:
-        loaded_values['-TEMPLATE-'] = args.template
-    if args.datetime_format:
-        loaded_values['-DATETIME-FORMAT-'] = args.datetime_format
-    if args.exif_format:
-        loaded_values['-EXIF-FORMAT-'] = args.exif_format
-
-    seperators_layout = []
+    separators_layout = []
     for k, v in sep_abbr.items():
-        seperators_layout.append(sg.Text(f'{k}:'))
-        seperators_layout.append(sg.Input(default_text=DEFAULT_SEPERATOR, key=f'-{v.gui_key}-', size=(3, 1)))
+        separators_layout.append(sg.Text(f'{k}:'))
+        separators_layout.append(sg.Input(default_text=DEFAULT_SEPARATOR, key=f'{k}', tooltip=v.name, size=(3, 1)))
 
     # Top-left layout (multi-line form section)
     top_left_layout = [
@@ -124,7 +114,7 @@ def main():  # noqa: PLR0915, PLR0912
         sg.FileBrowse(button_text='Browse', key='-BROWSE-', file_types=(('All Files', '*.*'),))],
 
         [sg.Text('Profile:'),
-         sg.Combo(all_profile_names, default_value=DEFAULT_PROFILE_NAME, key='-PROFILE-', size=(15, 1)),
+         sg.Combo(all_profile_names, default_value=DEFAULT_PROFILE_NAME, key='profile', size=(15, 1)),
          sg.Button('Save Profile'),
          sg.Button('Load Profile')],
 
@@ -135,21 +125,21 @@ def main():  # noqa: PLR0915, PLR0912
         sg.Button('Clear'),
         sg.Button('Save'),
         sg.Button('Load'),
-        sg.Text('Mode:'), sg.Combo([str(m) for m in Modes], default_value='dir', key='-MODE-', readonly=True)],
+        sg.Text('Mode:'), sg.Combo([str(m) for m in Modes], default_value='dir', key='mode', readonly=True)],
 
-        [sg.Text('Template:'), sg.Input(default_text=DEFAULT_TEMPLATE, expand_x=True, key='-TEMPLATE-', size=(30, 1))],
+        [sg.Text('Template:'), sg.Input(default_text=DEFAULT_TEMPLATE, expand_x=True, key='template', size=(30, 1))],
 
         [sg.Text('Datetime Format:'),
-         sg.Input(default_text=DEFAULT_DATETIME_FORMAT, expand_x=True, key='-DATETIME-FORMAT-', size=(20, 1))],
+         sg.Input(default_text=DEFAULT_DATETIME_FORMAT, expand_x=True, key='datetime_format', size=(20, 1))],
         [sg.Text('Exif Format:'),
-         sg.Input(default_text=DEFAULT_EXIF_FORMAT, expand_x=True, key='-EXIF-FORMAT-', size=(20, 1))],
+         sg.Input(default_text=DEFAULT_EXIF_FORMAT, expand_x=True, key='exif_format', size=(20, 1))],
 
-        [sg.Text('Prefix:'), sg.Input(expand_x=True, key='-PREFIX-', size=(15, 1)),
-        sg.Text('Suffix:'), sg.Input(expand_x=True, key='-SUFFIX-', size=(15, 1))],
+        [sg.Text('Prefix:'), sg.Input(expand_x=True, key='prefix', size=(15, 1)),
+        sg.Text('Suffix:'), sg.Input(expand_x=True, key='suffix', size=(15, 1))],
 
-        [*seperators_layout,
-        sg.Checkbox('Normalize', default=True, key='-NORMALIZE-', expand_x=True),
-        sg.Checkbox('show full paths in table', default= True, key='-ORG-FULL-PATH-', expand_x=True),
+        [*separators_layout,
+        sg.Checkbox('Normalize', default=True, key='normalize', expand_x=True),
+        sg.Checkbox('show full paths in table', default= True, key='org_full_path', expand_x=True),
         sg.Text('Items found:'), sg.Text('', key='-ITEMS-FOUND-', size=(10, 1)),
         ]
     ]
@@ -160,7 +150,7 @@ def main():  # noqa: PLR0915, PLR0912
     # Top-right with listbox
     top_right_column = sg.Column([
         [sg.Text('Added Input Paths:'), sg.Button('About MedRen v' + __version__, key='-VERSION-')],
-        [sg.Listbox(values=[], size=(100, 8), key='-INPUTS-', expand_x=True, expand_y=True)]
+        [sg.Listbox(values=[], size=(100, 8), key='inputs', expand_x=True, expand_y=True)]
     ], vertical_alignment='top')
 
     # Right-click menu
@@ -198,7 +188,7 @@ def main():  # noqa: PLR0915, PLR0912
     window.read(timeout=0)
     for key in loaded_values:
         window[key].update(loaded_values[key])
-    # window['-INPUTS-'].Widget.select_set(0)
+    # window['inputs'].Widget.select_set(0)
 
     renamer, preview = None, {}
     table_data = []
@@ -208,9 +198,9 @@ def main():  # noqa: PLR0915, PLR0912
         event, values = window.read()
         if event == sg.WIN_CLOSED:
             break
-        profile_name = values.get('-PROFILE-', DEFAULT_PROFILE_NAME)
-        # input_paths = values['-INPUTS-']
-        input_paths = window['-INPUTS-'].Values
+        profile_name = values.get('profile', DEFAULT_PROFILE_NAME)
+        # input_paths = values['inputs']
+        input_paths = window['inputs'].Values
         if event == '-VERSION-':
             sg.popup(f'MedRen - The Media Renamer v{__version__}. By Idan Miara',
                      title='לאבא באהבה 😍')
@@ -251,47 +241,48 @@ def main():  # noqa: PLR0915, PLR0912
         # Handle file/directory selection
         elif event == '-PATH-':
             path = values['-PATH-']
-            if values['-MODE-'] == 'file':
+            if values['mode'] == 'file':
                 window['-PATH-'].update(Path(path))
-            elif values['-MODE-'] == 'recursive':
+            elif values['mode'] == 'recursive':
                 window['-PATH-'].update(Path(path).parent / '**/*')
-            else: # elif values['-MODE-'] == 'dir':
+            else: # elif values['mode'] == 'dir':
                 window['-PATH-'].update(Path(path).parent / '*')
 
         elif event == 'Add':
             path = values['-PATH-']
             if path and path not in input_paths:
                 input_paths.append(path)
-                window['-INPUTS-'].update(input_paths)
-                # window['-INPUTS-'].Widget.select_set(0)
+                window['inputs'].update(input_paths)
+                # window['inputs'].Widget.select_set(0)
 
         elif event == 'Clear':
             # input_paths.clear()
             table_data = []
-            window['-INPUTS-'].update(input_paths)
-            # window['-INPUTS-'].Widget.select_set(0)
+            window['inputs'].update(input_paths)
+            # window['inputs'].Widget.select_set(0)
             window['-TABLE-'].update(table_data)
             preview = {}
             renamer = None
 
         elif event == 'Preview':
             if input_paths:
-                recursive = values['-MODE-'] == 'recursive'
-                seperator_values = {k: values[v.gui_key()] for k, v in sep_abbr.items()}
+                recursive = values['mode'] == 'recursive'
+                separator_values = {k: values[k] for k in sep_abbr.keys()}
+                exif_format = values['exif_format']
                 renamer = Renamer(
-                    prefix=values['-PREFIX-'],
-                    template=values['-TEMPLATE-'],
-                    datetime_format=values['-DATETIME-FORMAT-'],
-                    exif_format=values['-EXIF-FORMAT-'],
-                    seperators=seperator_values,
-                    normalize=values['-NORMALIZE-'],
-                    suffix=values['-SUFFIX-'],
+                    prefix=values['prefix'],
+                    template=values['template'],
+                    datetime_format=values['datetime_format'],
+                    exif_format=exif_format,
+                    separators=separator_values,
+                    normalize=values['normalize'],
+                    suffix=values['suffix'],
                     recursive=recursive,
                 )
                 preview = renamer.generate_renames(input_paths, resolve_names=True)
-                table_data = [[orig, path, ex.dt, ex.goff, ex.make, ex.model, ex.backend]
-                              for orig, (path, ex) in preview.items()]
-                if not values['-ORG-FULL-PATH-']:
+                table_data = [[orig, path, ex.dt, ex.goff, exif_str, ex.backend]
+                              for orig, (path, ex, exif_str) in preview.items()]
+                if not values['org_full_path']:
                     for item in table_data:
                         item[0] = Path(item[0]).name
                 window['-TABLE-'].update(values=table_data)
@@ -299,7 +290,7 @@ def main():  # noqa: PLR0915, PLR0912
 
         elif event == 'Rename':
             if preview and renamer:
-                log_filename = datetime.datetime.now().strftime(values['-DATETIME-FORMAT-']) + '.log'
+                log_filename = datetime.datetime.now().strftime(values['datetime_format']) + '.log'
                 renamer.apply_rename(preview, logfile=MEDREN_DIR / 'logs' / log_filename)
                 sg.popup('Renaming complete!')
                 window['-TABLE-'].update([])
