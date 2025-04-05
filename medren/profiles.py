@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from dataclasses import dataclass
-from enum import Enum, IntEnum, auto
+from enum import Enum, IntEnum, auto, StrEnum
 
 from medren.consts import DEFAULT_TEMPLATE, DEFAULT_DATETIME_FORMAT, DEFAULT_PROFILE_NAME
 
@@ -25,10 +25,10 @@ sep_abbr: dict[str, Separator] = {
 assert set(sep_abbr.values()) == set(s for s in Separator)
 
 
-class Modes(IntEnum):
-    file = 0
-    dir = 1
-    recursive = 2
+class Modes(StrEnum):
+    file = "file"
+    dir = "dir"
+    recursive = "recursive"
 
 
 @dataclass

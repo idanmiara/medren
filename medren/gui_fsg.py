@@ -55,9 +55,9 @@ def save_settings(values, filename, is_profile=False) -> None:
     except Exception:
         pass
 
-def load_profile(profile_name) -> dict:
+def load_profile(profile_name: str) -> dict:
     profile_name = (profile_name or DEFAULT_PROFILE_NAME)
-    profile_filename = PROFILES_DIR / (profile_name + '.json')
+    profile_filename = get_profile_filename(profile_name)
     if profile_filename.is_file():
         return load_settings(profile_filename, is_profile=True)
     else:
@@ -66,11 +66,20 @@ def load_profile(profile_name) -> dict:
             return profile.get_vars()
     return {}
 
+def save_profile(values, profile_name: str) -> None:
+    profile_filename = get_profile_filename(profile_name)
+    save_settings(values=values, filename=profile_filename, is_profile=True)
 
-def save_profile(values, profile_name) -> None:
+def delete_profile(profile_name: str):
+    profile_filename = get_profile_filename(profile_name)
+    if profile_filename.is_file():
+        os.remove(profile_filename)
+
+def get_profile_filename(profile_name: str):
     profile_name = (profile_name or DEFAULT_PROFILE_NAME) + '.json'
     profile_filename = PROFILES_DIR / profile_name
-    save_settings(values=values, filename=profile_filename, is_profile=True)
+    return profile_filename
+
 
 
 def parse_args():
@@ -84,15 +93,26 @@ def parse_args():
     parser.add_argument('--suffix', '-s', help='Initial suffix value')
     return parser.parse_args()
 
+
+def update_profile_list():
+    pass
+
+
+def get_profile_names():
+    saved_profile_names = [p.stem for p in PROFILES_DIR.glob('*.json')]
+    built_in_profile_names = list(profiles.keys())
+    all_profile_names = sorted(set(saved_profile_names) | set(built_in_profile_names))
+    return saved_profile_names, built_in_profile_names, all_profile_names
+
+
 def main():  # noqa: PLR0915, PLR0912
     args = parse_args()
 
     # Load saved values or use command line arguments
     settings_filename = MEDREN_DIR / 'medren_settings.json'
     loaded_values = load_settings(settings_filename)
-    saved_profile_names = [p.stem for p in PROFILES_DIR.glob('*.json')]
-    built_in_profile_names = list(profiles.keys())
-    all_profile_names = sorted(set(saved_profile_names) | set(built_in_profile_names))
+
+    saved_profile_names, built_in_profile_names, all_profile_names = get_profile_names()
 
     args_vars = vars(args)
     if args.profile:
@@ -116,7 +136,9 @@ def main():  # noqa: PLR0915, PLR0912
         [sg.Text('Profile:'),
          sg.Combo(all_profile_names, default_value=DEFAULT_PROFILE_NAME, key='profile', size=(15, 1)),
          sg.Button('Save Profile'),
-         sg.Button('Load Profile')],
+         sg.Button('Load Profile'),
+         sg.Button('Delete Profile'),
+         ],
 
         [
         sg.Button('Add'),
@@ -125,7 +147,7 @@ def main():  # noqa: PLR0915, PLR0912
         sg.Button('Clear'),
         sg.Button('Save'),
         sg.Button('Load'),
-        sg.Text('Mode:'), sg.Combo([str(m) for m in Modes], default_value='dir', key='mode', readonly=True)],
+        sg.Text('Mode:'), sg.Combo([m.name for m in Modes], default_value=Modes.dir.name, key='mode', readonly=True)],
 
         [sg.Text('Template:'), sg.Input(default_text=DEFAULT_TEMPLATE, expand_x=True, key='template', size=(30, 1))],
 
@@ -225,6 +247,9 @@ def main():  # noqa: PLR0915, PLR0912
             try:
                 if sg.popup_yes_no(f'Would you like to save profile {profile_name}?', title='Save Profile'):
                     save_profile(values=values, profile_name=profile_name)
+                    saved_profile_names, built_in_profile_names, all_profile_names = get_profile_names()
+                    window['profile'].update(all_profile_names)
+
             except Exception as e   :
                 logger.error(f"Error saving profile {profile_name}: {e}")
 
@@ -238,14 +263,27 @@ def main():  # noqa: PLR0915, PLR0912
             except Exception as e:
                 logger.error(f"Error loading profile {profile_name}: {e}")
 
+        elif event == 'Delete Profile':
+            try:
+                is_builtin_profile = profile_name in built_in_profile_names
+                msg = f'restore profile {profile_name} to default' if is_builtin_profile \
+                    else f'delete profile {profile_name}'
+                if sg.popup_yes_no(f'Would you like to {msg}?', title='Load Profile'):
+                    delete_profile(profile_name)
+                    if is_builtin_profile:
+                        load_profile(profile_name)
+
+            except Exception as e:
+                logger.error(f"Error loading profile {profile_name}: {e}")
+
         # Handle file/directory selection
         elif event == '-PATH-':
             path = values['-PATH-']
-            if values['mode'] == 'file':
+            if values['mode'] == Modes.file.name:
                 window['-PATH-'].update(Path(path))
-            elif values['mode'] == 'recursive':
+            elif values['mode'] == Modes.recursive.name:
                 window['-PATH-'].update(Path(path).parent / '**/*')
-            else: # elif values['mode'] == 'dir':
+            else: # elif values['mode'] == Modes.dir.name:
                 window['-PATH-'].update(Path(path).parent / '*')
 
         elif event == 'Add':

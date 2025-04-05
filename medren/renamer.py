@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 MEDREN_DIR = Path(os.path.join(os.path.expanduser('~'), 'medren'))
 MEDREN_DIR.mkdir(parents=True, exist_ok=True)
-PROFILES_DIR = MEDREN_DIR / 'PROFILEs'
+PROFILES_DIR = MEDREN_DIR / 'profiles'
 PROFILES_DIR.mkdir(parents=True, exist_ok=True)
 
 
@@ -134,6 +134,8 @@ class Renamer:
         idx = 0
         dt_and_paths = []
         for path in inputs:
+            if not path.is_file():
+                continue
             ex = self.fetch_meta(path)
             if ex is not None:
                 dt_and_paths.append((Path(path), ex))
