@@ -47,6 +47,7 @@ def load_settings(filename, is_profile=False) -> dict:
     return {}
 
 def save_settings(values, filename, is_profile=False) -> None:
+    Profile.unexpand_separators(values)---
     filter_list = profile_keys if is_profile else saved_keys
     values = {key: values[key] for key in filter_list}
     try:
