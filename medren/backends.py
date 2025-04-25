@@ -72,7 +72,7 @@ def extract_hachoir(path: str, logger: logging.Logger) -> ExifClass | None:
             parser.stream._input.close()
     return None
 
-def extract_pymediainfo(path: str, logger: logging.Logger) -> ExifClass:
+def extract_pymediainfo(path: str, logger: logging.Logger) -> ExifClass | None:
     from pymediainfo import MediaInfo
     media_info = MediaInfo.parse(path)
     for track in media_info.tracks:

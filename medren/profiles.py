@@ -31,6 +31,9 @@ profiles: dict[str, Profile] = {
     "enumerated": Profile(
         template='{prefix}{s}#{idx:03d}{s}{datetime}{s}{cname}{s}{suffix}{ext}',
     ),
+    "geo": Profile(
+        template='{prefix}{s}{datetime}{s}{pluscode}{s}{address}{s}{lat:.4f}{s}{lon:.4f}{ext}', # .4 digits ~ 11m accuracy
+    ),
     "compact": Profile(
         template='{prefix}{s}{datetime}{s}{suffix}{ext}',
     ),

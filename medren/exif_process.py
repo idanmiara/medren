@@ -59,12 +59,12 @@ class ExifClass:
         return dict(
             make=self.make or none_value,
             model=self.model or none_value,
-            x=self.x or none_value,
-            y=self.y or none_value,
-            w=self.w or none_value,
-            h=self.h or none_value,
-            lat=self.lat or none_value,
-            lon=self.lon or none_value,
+            x=self.x or 0,
+            y=self.y or 0,
+            w=self.w or 0,
+            h=self.h or 0,
+            lat=self.lat or 0,
+            lon=self.lon or 0,
         )
 
 
@@ -160,13 +160,15 @@ def exif_dict_decode(d: OrgExifDict):
 # GPS Longitude                   : 34 deg 56' 12.15" E
 # ((32, 1), (33, 1), (56494080, 1000000))
 
-def parse_gps(p) -> float | None:
+def parse_gps(p, ref) -> float | None:
     if not p:
         return None
     d = p[0][0] / p[0][1]
     m = p[1][0] / p[1][1]
     s = p[2][0] / p[2][1]
     dms = d + m / 60 + s / 3600
+    if ref in [b'S', b'W']:
+        return -dms
     return dms
 
 

@@ -8,6 +8,9 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from geopy import Nominatim
+from openlocationcode.openlocationcode import encode
+
 from medren.backends import ExifClass, available_backends, backend_support, extension_normalized
 from medren.consts import DEFAULT_DATETIME_FORMAT, DEFAULT_TEMPLATE, DEFAULT_SEPARATOR, GENERIC_PATTERNS
 
@@ -35,11 +38,20 @@ class Renamer:
     separator: str = field(default=DEFAULT_SEPARATOR)  # The separator between parts of the name
     backends: list[str] | None = None  # The backends to use for metadata extraction
     recursive: bool = field(default=False)  # Whether to recursively search for files
+    do_calc_hash: bool | None = None
+    do_calc_loc: bool | None = None
+    do_calc_pluscode: bool | None = None
+    geolocator: Nominatim | None = None
 
     def __post_init__(self):
         """Initialize backends after instance creation."""
         self.prefix = self.prefix or ''
         self.backends = self.backends or available_backends
+        self.do_calc_hash = '{sha256}' in self.template
+        self.do_calc_loc = '{address}' in self.template
+        self.do_calc_pluscode = '{pluscode}' in self.template
+        if self.do_calc_loc:
+            self.geolocator = Nominatim(user_agent="medren")
 
     def is_generic(self, filename: str) -> bool:
         """
@@ -81,6 +93,7 @@ class Renamer:
         """
         ext = os.path.splitext(path)[1].lower()
         ext = extension_normalized.get(ext, ext)
+        path = str(path)
         for backend in self.backends:
             supported_exts = backend_support[backend].ext
             if supported_exts is None or ext in supported_exts:
@@ -145,7 +158,7 @@ class Renamer:
         s = self.separator
 
         none_value = '?'
-        do_calc_hash = '{sha256}' in self.template
+
         for path, ex in dt_and_paths:
             try:
                 name = path.stem
@@ -154,7 +167,14 @@ class Renamer:
                 ext = path.suffix
                 datetime_str = ex.dt.strftime(self.datetime_format)
                 exif_kwargs = ex.get_exif_kwargs(none_value=none_value)
-                sha256 = hash_file(path) if do_calc_hash else ''
+                sha256 = hash_file(path) if self.do_calc_hash else ''
+                address = None
+                pluscode = None
+                if self.do_calc_loc and ex.lat and ex.lon:
+                    location = self.geolocator.reverse(f"{ex.lat}, {ex.lon}")
+                    if location and location.address:
+                        address = location.address
+                    pluscode = encode(ex.lat, ex.lon)
                 # Format the new filename using the template
                 new_name = self.template.format(
                     prefix=self.prefix or none_value,
@@ -164,6 +184,8 @@ class Renamer:
                     suffix=suffix or none_value,
                     idx=idx,
                     sha256=sha256,
+                    pluscode=pluscode or none_value,
+                    address=address or none_value,
                     s=s,
                     ext=ext,
                     **exif_kwargs,

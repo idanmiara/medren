@@ -5,6 +5,7 @@ import logging
 import os
 from enum import Enum
 from pathlib import Path
+from typing import Any
 
 import FreeSimpleGUI as sg  # noqa: N813
 import pyperclip
@@ -102,6 +103,13 @@ def get_profile_names():
     return saved_profile_names, built_in_profile_names, all_profile_names
 
 
+def override_settings(d: dict[str, Any], overrides: dict[str, Any]):
+    for k, v in overrides.items():
+        if v:
+            d[k] = v
+    return d
+
+
 def main():  # noqa: PLR0915, PLR0912
     args = parse_args()
 
@@ -116,8 +124,8 @@ def main():  # noqa: PLR0915, PLR0912
         loaded_values['profile'] = args.profile
 
     profile_name = loaded_values.get('profile')
-    loaded_values = loaded_values | load_profile(profile_name)
-    loaded_values.update(args_vars)
+    loaded_values = override_settings(loaded_values, load_profile(profile_name))
+    loaded_values = override_settings(loaded_values, args_vars)
 
     separators_layout = [sg.Text('separator:'),
                          sg.Input(default_text=DEFAULT_SEPARATOR, key='separator', tooltip='{s}', size=(3, 1))]
@@ -132,8 +140,8 @@ def main():  # noqa: PLR0915, PLR0912
 
         [sg.Text('Profile:'),
          sg.Combo(all_profile_names, default_value=DEFAULT_PROFILE_NAME, key='profile', size=(15, 1)),
-         sg.Button('Save Profile'),
          sg.Button('Load Profile'),
+         sg.Button('Save Profile'),
          sg.Button('Delete Profile'),
          ],
 
@@ -142,8 +150,8 @@ def main():  # noqa: PLR0915, PLR0912
         sg.Button('Preview'),
         sg.Button('Rename'),
         sg.Button('Clear'),
-        sg.Button('Save Settings'),
         sg.Button('Load Settings'),
+        sg.Button('Save Settings'),
         ],
 
         [sg.Text('Template:'), sg.Input(default_text=DEFAULT_TEMPLATE, expand_x=True, key='template', size=(30, 1))],
@@ -176,7 +184,7 @@ def main():  # noqa: PLR0915, PLR0912
         new = 'Copy New'
         both = 'Copy Original -> New'
         csv = 'Copy CSV'
-    right_click_menu = ['', [c.name for c in RightClickCommand]]
+    right_click_menu = ['', [c.value for c in RightClickCommand]]
 
     # Bottom layout: table
     bottom_layout = [sg.Table(
