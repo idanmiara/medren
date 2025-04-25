@@ -150,13 +150,16 @@ def extract_hachoir(path: Path | str, logger: logging.Logger) -> ExifClass | Non
                 elif tag_name == "Camera manufacturer":
                     make = tag_val
                 elif tag_name == "Date-time original":
-                    t_org = tag_val
+                    t_org = tag_val.replace('-',':')
                 elif tag_name == "Date-time digitized":
-                    t_dig = tag_val
+                    t_dig = tag_val.replace('-',':')
                 elif tag_name == "Creation date":
-                    t_img = tag_val
+                    t_img = tag_val.replace('-',':')
 
-            dt, goff = extract_datetime_local(t_org or t_dig, logger)
+            if not t_org and not t_dig:
+                return None
+            dt = parse_exif_datetime(t_org or t_dig)
+            make, model = fix_make_model(make, model)
             return ExifClass(
                 ext=Path(path).suffix,
 
@@ -180,9 +183,6 @@ def extract_hachoir(path: Path | str, logger: logging.Logger) -> ExifClass | Non
 
                 backend='hachoir',
             )
-            # if "Creation date" in item:
-                # dt, goff = extract_datetime_local(tag_val, logger)
-                # return ExifClass(backend='hachoir', ext=Path(path).suffix, dt=dt, goff=goff)
 
     finally:
         if parser:

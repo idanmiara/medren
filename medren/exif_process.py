@@ -197,6 +197,8 @@ def parse_exif_datetime(s: str) -> datetime.datetime:
     return datetime.datetime.strptime(s, "%Y:%m:%d %H:%M:%S")
 
 def extract_datetime_local(date_str: str, logger: logging.Logger) -> tuple[datetime.datetime | None, Goff]:
+    if not date_str:
+        return None, None
     return datetime.datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S"), True
 
 
