@@ -75,7 +75,7 @@ def extract_exifread(path: Path | str, logger: logging.Logger) -> ExifClass | No
         return parse_offset(p.values, logger)
 
     with open(path, 'rb') as f:
-        tags = exifread.process_file(f, stop_tag='EXIF DateTimeOriginal')
+        tags = exifread.process_file(f)
         t_org = get_tag_str(tags.get('EXIF DateTimeOriginal'))
         t_dig = get_tag_str(tags.get('EXIF DateTimeDigitized'))
         dt, stat = get_best_dt([t_org, t_dig])
@@ -130,14 +130,59 @@ def extract_hachoir(path: Path | str, logger: logging.Logger) -> ExifClass | Non
     from hachoir.parser import createParser
     path = str(path)
     parser = createParser(path)
+    t_org = t_dig = t_img = dt = goff_org = goff_dig = goff_img = make = model = w = h = lat = lon = None
+
     try:
         metadata = extractMetadata(parser) if parser else None
         if metadata:
             for item in metadata.exportPlaintext():
-                if "Creation date" in item:
-                    date_str = item.split(": ")[1]
-                    dt, goff = extract_datetime_local(date_str, logger)
-                    return ExifClass(backend='hachoir', ext=Path(path).suffix, dt=dt, goff=goff)
+                try:
+                    tag_name, tag_val = item.split(": ")
+                except:
+                    continue
+                tag_name = tag_name[2:]
+                if tag_name == "Image width":
+                    w = int(tag_val[:-7])
+                elif tag_name == "Image height":
+                    h = int(tag_val[:-7])
+                elif tag_name == "Camera model":
+                    model = tag_val
+                elif tag_name == "Camera manufacturer":
+                    make = tag_val
+                elif tag_name == "Date-time original":
+                    t_org = tag_val
+                elif tag_name == "Date-time digitized":
+                    t_dig = tag_val
+                elif tag_name == "Creation date":
+                    t_img = tag_val
+
+            dt, goff = extract_datetime_local(t_org or t_dig, logger)
+            return ExifClass(
+                ext=Path(path).suffix,
+
+                dt=dt,
+                t_org=t_org,
+                t_dig=t_dig,
+                t_img=t_img,
+
+                goff=goff_org,
+                goff_dig=goff_dig,
+                goff_img=goff_img,
+
+                make=make,
+                model=model,
+
+                w=w,
+                h=h,
+
+                lat=lat,
+                lon=lon,
+
+                backend='hachoir',
+            )
+            # if "Creation date" in item:
+                # dt, goff = extract_datetime_local(tag_val, logger)
+                # return ExifClass(backend='hachoir', ext=Path(path).suffix, dt=dt, goff=goff)
 
     finally:
         if parser:
