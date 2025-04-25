@@ -16,7 +16,7 @@ extension_normalized = {
 }
 
 
-def extract_piexif(path: str, logger: logging.Logger) -> ExifClass | None:
+def extract_piexif(path: Path | str, logger: logging.Logger) -> ExifClass | None:
     from medren.backend_piexif import piexif_get, piexif_get_raw
     exif_dict, stat = piexif_get_raw(path, logger)
     if stat == ExifStat.ValidExif:
@@ -26,8 +26,9 @@ def extract_piexif(path: str, logger: logging.Logger) -> ExifClass | None:
     return None
 
 
-def extract_exiftool(path: str, logger: logging.Logger) -> ExifClass | None:
+def extract_exiftool(path: Path | str, logger: logging.Logger) -> ExifClass | None:
     import exiftool
+    path = str(path)
     with exiftool.ExifToolHelper() as et:
         metadata = et.get_metadata(path)
         if metadata and len(metadata) > 0:
@@ -41,7 +42,7 @@ def extract_exiftool(path: str, logger: logging.Logger) -> ExifClass | None:
     return None
 
 
-def extract_exifread(path: str, logger: logging.Logger) -> ExifClass | None:
+def extract_exifread(path: Path | str, logger: logging.Logger) -> ExifClass | None:
     import exifread
     from exifread.classes import IfdTag
 
@@ -124,10 +125,10 @@ def extract_exifread(path: str, logger: logging.Logger) -> ExifClass | None:
         )
 
 
-def extract_hachoir(path: str, logger: logging.Logger) -> ExifClass | None:
+def extract_hachoir(path: Path | str, logger: logging.Logger) -> ExifClass | None:
     from hachoir.metadata import extractMetadata
     from hachoir.parser import createParser
-
+    path = str(path)
     parser = createParser(path)
     try:
         metadata = extractMetadata(parser) if parser else None
@@ -144,7 +145,7 @@ def extract_hachoir(path: str, logger: logging.Logger) -> ExifClass | None:
     return None
 
 
-def extract_pymediainfo(path: str, logger: logging.Logger) -> ExifClass | None:
+def extract_pymediainfo(path: Path | str, logger: logging.Logger) -> ExifClass | None:
     from pymediainfo import MediaInfo
     media_info = MediaInfo.parse(path)
     for track in media_info.tracks:
@@ -155,8 +156,9 @@ def extract_pymediainfo(path: str, logger: logging.Logger) -> ExifClass | None:
     return None
 
 
-def extract_ffmpeg(path: str, logger: logging.Logger) -> ExifClass | None:
+def extract_ffmpeg(path: Path | str, logger: logging.Logger) -> ExifClass | None:
     import ffmpeg
+    path = str(path)
     probe = ffmpeg.probe(path)
     date_str = probe['format']['tags'].get('creation_time')
     if date_str:
@@ -170,7 +172,7 @@ def extract_ffmpeg(path: str, logger: logging.Logger) -> ExifClass | None:
 class Backend:
     name: str
     ext: list[str] | None
-    func: Callable[[str, logging.Logger], ExifClass | None]
+    func: Callable[[Path | str, logging.Logger], ExifClass | None]
     dep: list[str]
 
 

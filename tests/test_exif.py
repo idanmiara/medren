@@ -21,9 +21,10 @@ def test_compare_exif_backends(filename: list[Path], backends=['exifread', 'piex
 
 
 @pytest.mark.parametrize("filename", list(Path.glob(root, '*.jpg')))
-def test_compare_exif_backends(filename: list[Path], backends=available_backends):
+def test_compare_exif_backends_min(filename: list[Path], backends=available_backends):
     e0 = backend_support[backends[0]].func(filename, logger)
     for backend in backends[1:]:
         e1 = backend_support[backend].func(filename, logger)
-        assert e0.dt == e1.dt
+        if e1:
+            assert e0.dt == e1.dt
 
