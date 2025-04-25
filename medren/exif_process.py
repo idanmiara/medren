@@ -43,8 +43,6 @@ class ExifClass:
 
     make: str | None = None
     model: str | None = None
-    x: int | None = None
-    y: int | None = None
     w: int | None = None
     h: int | None = None
     lat: float | None = None
@@ -59,12 +57,10 @@ class ExifClass:
         return dict(
             make=self.make or none_value,
             model=self.model or none_value,
-            x=self.x or 0,
-            y=self.y or 0,
-            w=self.w or 0,
-            h=self.h or 0,
-            lat=self.lat or 0,
-            lon=self.lon or 0,
+            w=self.w or none_value,
+            h=self.h or none_value,
+            lat=self.lat or none_value,
+            lon=self.lon or none_value,
         )
 
 
@@ -172,10 +168,9 @@ def parse_gps(p, ref) -> float | None:
     return dms
 
 
-def extract_piexif(path: str, logger: logging.Logger) -> tuple[datetime.datetime | None, Goff]:
-    pass
-
-def parse_offset(goff: str, logger: logging.Logger) -> int:
+def parse_offset(goff: str | None, logger: logging.Logger) -> int | None:
+    if not goff:
+        return None
     try:
         goff_len = 6
         if len(goff) >= goff_len:
@@ -193,18 +188,17 @@ def extract_datetime_utc(date_str: str, logger: logging.Logger) -> tuple[datetim
     if len(date_str) >= dt_len:
         if len(date_str) > dt_len:
             goff = date_str[dt_len:]
-            date_str = date_str[:dt_len]
-        if goff:
             goff = parse_offset(goff, logger)
+            date_str = date_str[:dt_len]
         dt = datetime.datetime.strptime(date_str, "%Y:%m:%d %H:%M:%S")
     return dt, goff
+
+def parse_exif_datetime(s: str) -> datetime.datetime:
+    return datetime.datetime.strptime(s, "%Y:%m:%d %H:%M:%S")
 
 def extract_datetime_local(date_str: str, logger: logging.Logger) -> tuple[datetime.datetime | None, Goff]:
     return datetime.datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S"), True
 
-
-def parse_exif_datetime(s: str) -> datetime.datetime:
-    return datetime.datetime.strptime(s, "%Y:%m:%d %H:%M:%S")
 
 def is_timestamp_valid(s: str) -> bool:
     try:

@@ -2,6 +2,7 @@ import csv
 import glob
 import hashlib
 import logging
+import math
 import os
 import re
 from collections import defaultdict
@@ -13,6 +14,7 @@ from openlocationcode.openlocationcode import encode
 
 from medren.backends import ExifClass, available_backends, backend_support, extension_normalized
 from medren.consts import DEFAULT_DATETIME_FORMAT, DEFAULT_TEMPLATE, DEFAULT_SEPARATOR, GENERIC_PATTERNS
+from medren.util import filename_safe
 
 logger = logging.getLogger(__name__)
 
@@ -157,7 +159,8 @@ class Renamer:
 
         s = self.separator
 
-        none_value = '?'
+        none_value = math.nan
+        none_value_s = str(none_value)
 
         for path, ex in dt_and_paths:
             try:
@@ -194,7 +197,8 @@ class Renamer:
 
                 # Remove trailing separators from the new filename
                 new_stem, ext = os.path.splitext(new_name)
-                new_stem = new_stem.replace(none_value+s,'').replace(s+none_value,'').replace(none_value,'')
+                new_stem = new_stem.replace(none_value_s+s,'').replace(s+none_value_s,'').replace(none_value_s,'')
+                new_stem = filename_safe(new_stem)
                 # if s and new_stem.endswith(s):
                 #     new_stem = new_stem[:-len(s)]
                 # if s and new_stem.startswith(s):

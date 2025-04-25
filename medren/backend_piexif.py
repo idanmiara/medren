@@ -54,6 +54,15 @@ def piexif_get_raw(filename: Path | str, logger: logging.Logger) -> tuple[ExifRa
         logger.warning(f"Could not get raw exif data from {filename}: {e} using piexif")
         return None, ExifStat.UnknownErr
 
+def get_best_dt(dts: list[str | None]) -> tuple[str | None, ExifStat]:
+    stat = ExifStat.NoDateTime
+    for dt in dts:
+        if dt:
+            stat = ExifStat.InvalidDateTime
+            if is_timestamp_valid(dt):
+                return dt, ExifStat.ValidExif
+    return None, stat
+
 def piexif_get(exif_dict: ExifRaw, ext: str, logger: logging.Logger) -> tuple[ExifClass | None, ExifStat]:
     try:
         _0th = exif_dict.get('0th', {})
@@ -62,48 +71,58 @@ def piexif_get(exif_dict: ExifRaw, ext: str, logger: logging.Logger) -> tuple[Ex
         # Purpose: The original date and time when the photo was actually taken.
         # Typically, the most reliable indicator a photo captured timestamp, especially if directly from a camera.
         t_org = exif_decode(exif.get(piexif.ExifIFD.DateTimeOriginal))
+
         # Purpose: The date and time when the photo was digitized.
         # In digital cameras, this usually matches DateTimeOriginal, but in scanned images,can be the scanning date.
         t_dig = exif_decode(exif.get(piexif.ExifIFD.DateTimeDigitized))
+
+        dt, stat = get_best_dt([t_org, t_dig])
+        if dt is None:
+            return dt, stat
         # Purpose: The date and time of last modification of the file.
         # This tag often changes when the image is edited or modified by software.
         t_img = exif_decode(_0th.get(piexif.ImageIFD.DateTime))
+        dt = parse_exif_datetime(dt)
 
-        goff = parse_offset(exif_decode(exif.get(piexif.ExifIFD.OffsetTimeOriginal)), logger)
+
+        goff_org = parse_offset(exif_decode(exif.get(piexif.ExifIFD.OffsetTimeOriginal)), logger)
         goff_dig = parse_offset(exif_decode(exif.get(piexif.ExifIFD.OffsetTimeDigitized)), logger)
         goff_img = parse_offset(exif_decode(exif.get(piexif.ExifIFD.OffsetTime)), logger)
 
-        if not (t_org or t_dig or t_img):
-            return None, ExifStat.NoDateTime
-        if not is_timestamp_valid(t_org) and not is_timestamp_valid(t_org) and not is_timestamp_valid(t_org):
-            return None, ExifStat.InvalidDateTime
-
         gps = exif_dict.get('GPS', {})
-        make, model = fix_make_model(
-            exif_decode(_0th.get(piexif.ImageIFD.Make)),
-            exif_decode(_0th.get(piexif.ImageIFD.Model)))
+        make = exif_decode(_0th.get(piexif.ImageIFD.Make))
+        model = exif_decode(_0th.get(piexif.ImageIFD.Model))
+        make, model = fix_make_model(make, model)
+
+        w = exif.get(piexif.ExifIFD.PixelXDimension) or _0th.get(piexif.ImageIFD.ImageWidth)
+        h = exif.get(piexif.ExifIFD.PixelYDimension) or _0th.get(piexif.ImageIFD.ImageLength)
+        # XResolution = _0th.get(piexif.ImageIFD.XResolution)
+        # YResolution = _0th.get(piexif.ImageIFD.YResolution)
+
+        lat = parse_gps(gps.get(piexif.GPSIFD.GPSLatitude), gps.get(piexif.GPSIFD.GPSLatitudeRef))
+        lon = parse_gps(gps.get(piexif.GPSIFD.GPSLongitude), gps.get(piexif.GPSIFD.GPSLongitudeRef))
+
         e = ExifClass(
             ext=ext,
 
-            dt=parse_exif_datetime(t_org),
+            dt=dt,
             t_org=t_org,
             t_dig=t_dig,
             t_img=t_img,
 
-            goff=goff,
+            goff=goff_org,
             goff_dig=goff_dig,
             goff_img=goff_img,
 
             make=make,
             model=model,
-            w=_0th.get(piexif.ImageIFD.ImageWidth),
-            h=_0th.get(piexif.ImageIFD.ImageLength),
 
-            x=exif.get(piexif.ExifIFD.PixelXDimension),
-            y=exif.get(piexif.ExifIFD.PixelYDimension),
+            w=w,
+            h=h,
 
-            lat=parse_gps(gps.get(piexif.GPSIFD.GPSLatitude), gps.get(piexif.GPSIFD.GPSLatitudeRef)),
-            lon=parse_gps(gps.get(piexif.GPSIFD.GPSLongitude), gps.get(piexif.GPSIFD.GPSLongitudeRef)),
+            lat=lat,
+            lon=lon,
+
             backend='piexif',
             # all=exif_dict,
         )
