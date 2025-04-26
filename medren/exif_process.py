@@ -45,8 +45,11 @@ class ExifClass:
     model: str | None = None
     w: int | None = None
     h: int | None = None
+    iw: int | None = None
+    ih: int | None = None
     lat: float | None = None
     lon: float | None = None
+    alt: float | None = None
 
     # all: dict | None = None
 
@@ -166,6 +169,14 @@ def parse_gps(p, ref) -> float | None:
     if ref in [b'S', b'W']:
         return -dms
     return dms
+
+def parse_float(p, ref, digits: int) -> float | None:
+    if not p:
+        return None
+    p = p[0] / p[1]
+    if digits:
+        p = round(p, digits)
+    return p
 
 
 def parse_offset(goff: str | None, logger: logging.Logger) -> int | None:

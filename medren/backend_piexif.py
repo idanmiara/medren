@@ -11,7 +11,7 @@ from medren.exif_process import (
     is_timestamp_valid,
     parse_exif_datetime,
     parse_gps,
-    parse_offset,
+    parse_offset, parse_float,
 )
 
 
@@ -94,13 +94,19 @@ def piexif_get(exif_dict: ExifRaw, ext: str, logger: logging.Logger) -> tuple[Ex
         model = exif_decode(_0th.get(piexif.ImageIFD.Model))
         make, model = fix_make_model(make, model)
 
-        w = exif.get(piexif.ExifIFD.PixelXDimension) or _0th.get(piexif.ImageIFD.ImageWidth)
-        h = exif.get(piexif.ExifIFD.PixelYDimension) or _0th.get(piexif.ImageIFD.ImageLength)
+        # image size from exif, i.e. original
+        w = exif.get(piexif.ExifIFD.PixelXDimension)
+        h = exif.get(piexif.ExifIFD.PixelYDimension)
+
+        # actual image size, after possible editing
+        iw = _0th.get(piexif.ImageIFD.ImageWidth)
+        ih = _0th.get(piexif.ImageIFD.ImageLength)
         # XResolution = _0th.get(piexif.ImageIFD.XResolution)
         # YResolution = _0th.get(piexif.ImageIFD.YResolution)
 
         lat = parse_gps(gps.get(piexif.GPSIFD.GPSLatitude), gps.get(piexif.GPSIFD.GPSLatitudeRef))
         lon = parse_gps(gps.get(piexif.GPSIFD.GPSLongitude), gps.get(piexif.GPSIFD.GPSLongitudeRef))
+        alt = parse_float(gps.get(piexif.GPSIFD.GPSAltitude), gps.get(piexif.GPSIFD.GPSAltitudeRef), 1)
 
         e = ExifClass(
             ext=ext,
@@ -119,9 +125,12 @@ def piexif_get(exif_dict: ExifRaw, ext: str, logger: logging.Logger) -> tuple[Ex
 
             w=w,
             h=h,
+            iw=iw,
+            ih=ih,
 
             lat=lat,
             lon=lon,
+            alt=alt,
 
             backend='piexif',
             # all=exif_dict,

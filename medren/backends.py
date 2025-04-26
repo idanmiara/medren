@@ -2,7 +2,7 @@ import importlib
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable
+from typing import Callable, Any
 
 from medren.backend_piexif import get_best_dt
 from medren.exif_process import ExifClass, ExifStat, extract_datetime_local, extract_datetime_utc, parse_offset, \
@@ -69,6 +69,15 @@ def extract_exifread(path: Path | str, logger: logging.Logger) -> ExifClass | No
             return None
         return p.values[0]
 
+    def get_tag_float(p: IfdTag, digits: int) -> float | None:
+        if not p:
+            return None
+        p = p.values
+        p = p[0].num / p[0].den
+        if digits:
+            p = round(p, digits)
+        return p
+
     def get_offset_tag(p: IfdTag) -> int | None:
         if not p:
             return None
@@ -92,13 +101,17 @@ def extract_exifread(path: Path | str, logger: logging.Logger) -> ExifClass | No
         model = get_tag_str(tags.get('Image Model'))
         make, model = fix_make_model(make, model)
 
-        w = get_tag_int(tags.get('EXIF ExifImageWidth')) or get_tag_int(tags.get('Image ImageWidth'))
-        h = get_tag_int(tags.get('EXIF ExifImageLength')) or get_tag_int(tags.get('Image ImageLength'))
-        # XResolution = get_tag_int(tags.get('Image XResolution'))
-        # YResolution = get_tag_int(tags.get('Image YResolution'))
+        w = get_tag_int(tags.get('EXIF ExifImageWidth'))
+        h = get_tag_int(tags.get('EXIF ExifImageLength'))
+
+        iw = get_tag_int(tags.get('Image ImageWidth'))
+        ih = get_tag_int(tags.get('Image ImageLength'))
+        # XResolution = get_tag_val(tags.get('Image XResolution'))
+        # YResolution = get_tag_val(tags.get('Image YResolution'))
 
         lat = parse_gps_tag(tags.get('GPS GPSLatitude'), tags.get('GPS GPSLatitudeRef'))
         lon = parse_gps_tag(tags.get('GPS GPSLongitude'), tags.get('GPS GPSLongitudeRef'))
+        alt = get_tag_float(tags.get('GPS GPSAltitude'), 1)
 
         return ExifClass(
             ext=Path(path).suffix,
@@ -117,9 +130,12 @@ def extract_exifread(path: Path | str, logger: logging.Logger) -> ExifClass | No
 
             w=w,
             h=h,
+            iw=iw,
+            ih=ih,
 
             lat=lat,
             lon=lon,
+            alt=alt,
 
             backend='exifread',
         )
@@ -130,7 +146,7 @@ def extract_hachoir(path: Path | str, logger: logging.Logger) -> ExifClass | Non
     from hachoir.parser import createParser
     path = str(path)
     parser = createParser(path)
-    t_org = t_dig = t_img = dt = goff_org = goff_dig = goff_img = make = model = w = h = lat = lon = None
+    t_org = t_dig = t_img = dt = goff_org = goff_dig = goff_img = make = model = w = h = lat = lon = alt = None
 
     try:
         metadata = extractMetadata(parser) if parser else None
@@ -142,9 +158,9 @@ def extract_hachoir(path: Path | str, logger: logging.Logger) -> ExifClass | Non
                     continue
                 tag_name = tag_name[2:]
                 if tag_name == "Image width":
-                    w = int(tag_val[:-7])
+                    iw = int(tag_val[:-7]) # pixels
                 elif tag_name == "Image height":
-                    h = int(tag_val[:-7])
+                    ih = int(tag_val[:-7])
                 elif tag_name == "Camera model":
                     model = tag_val
                 elif tag_name == "Camera manufacturer":
@@ -155,6 +171,12 @@ def extract_hachoir(path: Path | str, logger: logging.Logger) -> ExifClass | Non
                     t_dig = tag_val.replace('-',':')
                 elif tag_name == "Creation date":
                     t_img = tag_val.replace('-',':')
+                elif tag_name == "Latitude":
+                    lat = float(tag_val)
+                elif tag_name == "Longitude":
+                    lon = float(tag_val)
+                elif tag_name == "Altitude":
+                    alt = round(float(tag_val[:-7]), 1) # meters
 
             if not t_org and not t_dig:
                 return None
@@ -177,9 +199,12 @@ def extract_hachoir(path: Path | str, logger: logging.Logger) -> ExifClass | Non
 
                 w=w,
                 h=h,
+                iw=iw,
+                ih=ih,
 
                 lat=lat,
                 lon=lon,
+                alt=alt,
 
                 backend='hachoir',
             )

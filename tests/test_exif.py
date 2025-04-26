@@ -39,6 +39,8 @@ def test_compare_exif_backends_partial(filename: list[Path], backends=available_
                 v0 = getattr(e0, field.name)
                 v1 = getattr(e1, field.name)
                 if v0 and v1:
+                    # if v0 != v1:
+                    #     e1 = backend_support[backend].func(filename, logger)
                     assert v0 == v1, field.name
             # assert e0.dt == e1.dt
 
