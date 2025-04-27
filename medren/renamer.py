@@ -12,8 +12,9 @@ from pathlib import Path
 from geopy import Nominatim
 from openlocationcode.openlocationcode import encode
 
-from medren.backends import ExifClass, available_backends, backend_support, extension_normalized
-from medren.consts import DEFAULT_DATETIME_FORMAT, DEFAULT_TEMPLATE, DEFAULT_SEPARATOR, GENERIC_PATTERNS
+from medren.backends import ExifClass, available_backends, backend_support
+from medren.consts import DEFAULT_DATETIME_FORMAT, DEFAULT_TEMPLATE, DEFAULT_SEPARATOR, GENERIC_PATTERNS, \
+    extension_normalized
 from medren.util import filename_safe
 
 logger = logging.getLogger(__name__)

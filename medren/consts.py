@@ -22,3 +22,24 @@ GENERIC_PATTERNS: list[str] = [
     r'^Photo[_-]?\d+',
     f'^{YEAR_PATTERN}{SEP}({DAY_PATTERN}){SEP}({DAY_PATTERN}){SEP}({HOUR_PATTERN}){SEP}({MINUTE_PATTERN})({SEP}{SECOND_PATTERN})?',
 ]
+
+
+image_ext_with_exif = ['.jpg', '.jpeg', '.tif', '.tiff']
+image_extensions = [*image_ext_with_exif, '.png', '.bmp', '.heic']
+extension_normalized = {
+    ".jpeg": ".jpg",
+    ".tiff": "tif",
+}
+video_extensions = ['.mp4', '.mp2', '.mpg', '.mpeg', '.m2v', '.m4v', '.mpv', '.mpv', '.avi']
+
+images_pattern = [f"*{ext}" for ext in image_extensions]
+video_pattern = [f"*{ext}" for ext in video_extensions]
+media_pattern = images_pattern + video_pattern
+file_types = {
+    "jpeg": ["*.jpg", "*.jpeg"],
+    "mp4": ["*.mp4"],
+    "images":  images_pattern,
+    "videos": video_pattern,
+    "media": media_pattern,
+    "any": ["*"]
+}

@@ -20,7 +20,7 @@ from medren.consts import (
     DEFAULT_DATETIME_FORMAT,
     DEFAULT_PROFILE_NAME,
     DEFAULT_SEPARATOR,
-    DEFAULT_TEMPLATE,
+    DEFAULT_TEMPLATE, file_types,
 )
 from medren.profiles import Modes, profile_keys, profiles
 
@@ -135,6 +135,7 @@ def main():  # noqa: PLR0915, PLR0912
         [sg.Text('Path:'),
         sg.Input(key='-PATH-', enable_events=True, expand_x=True),
         sg.FileBrowse(button_text='Browse', key='-BROWSE-', file_types=(('All Files', '*.*'),)),
+        # sg.Combo([list(file_types.keys())], default_value="media", key='pattern', readonly=False, size=(5, 1)),
         sg.Text('Mode:'), sg.Combo([m.name for m in Modes], default_value=Modes.dir.name, key='mode', readonly=True),
         ],
 
@@ -282,6 +283,8 @@ def main():  # noqa: PLR0915, PLR0912
         # Handle file/directory selection
         elif event == '-PATH-':
             path = values['-PATH-']
+            # pattern = values["file_types"]
+            # pattern = file_types.get(pattern, pattern)
             if values['mode'] == Modes.file.name:
                 window['-PATH-'].update(Path(path))
             elif values['mode'] == Modes.recursive.name:

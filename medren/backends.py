@@ -5,15 +5,9 @@ from pathlib import Path
 from typing import Callable, Any
 
 from medren.backend_piexif import get_best_dt
+from medren.consts import image_ext_with_exif
 from medren.exif_process import ExifClass, ExifStat, extract_datetime_local, extract_datetime_utc, parse_offset, \
     fix_make_model, parse_exif_datetime
-
-image_ext_with_exif = ['.jpg', '.tif']
-image_extensions = [*image_ext_with_exif, '.png', '.bmp', '.heic']
-extension_normalized = {
-    ".jpeg": ".jpg",
-    ".tiff": "tif",
-}
 
 
 def extract_piexif(path: Path | str, logger: logging.Logger) -> ExifClass | None:
