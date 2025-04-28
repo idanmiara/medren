@@ -41,5 +41,5 @@ file_types = {
     "images":  images_pattern,
     "videos": video_pattern,
     "media": media_pattern,
-    "any": ["*"]
+    "*": ["*"],
 }

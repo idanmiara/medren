@@ -175,7 +175,11 @@ class Renamer:
                 address = None
                 pluscode = None
                 if self.do_calc_loc and ex.lat and ex.lon:
-                    location = self.geolocator.reverse(f"{ex.lat}, {ex.lon}")
+                    try:
+                        location = self.geolocator.reverse(f"{ex.lat}, {ex.lon}")
+                    except Exception as e:
+                        logger.error(f"Could not get location info for: {ex.lat}, {ex.lon}: {e}")
+                        location = None
                     if location and location.address:
                         address = location.address
                     pluscode = encode(ex.lat, ex.lon)

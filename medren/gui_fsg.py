@@ -29,7 +29,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 saved_keys = [
-    'inputs', 'profile',
+    'inputs', 'profile', 'pattern',
     ]
 
 # Settings file path
@@ -135,7 +135,7 @@ def main():  # noqa: PLR0915, PLR0912
         [sg.Text('Path:'),
         sg.Input(key='-PATH-', enable_events=True, expand_x=True),
         sg.FileBrowse(button_text='Browse', key='-BROWSE-', file_types=(('All Files', '*.*'),)),
-        # sg.Combo([list(file_types.keys())], default_value="media", key='pattern', readonly=False, size=(5, 1)),
+        sg.Combo(list(file_types.keys()), default_value="*", key='pattern', readonly=False, size=(10, 1)),
         sg.Text('Mode:'), sg.Combo([m.name for m in Modes], default_value=Modes.dir.name, key='mode', readonly=True),
         ],
 
@@ -282,22 +282,31 @@ def main():  # noqa: PLR0915, PLR0912
 
         # Handle file/directory selection
         elif event == '-PATH-':
-            path = values['-PATH-']
-            # pattern = values["file_types"]
-            # pattern = file_types.get(pattern, pattern)
-            if values['mode'] == Modes.file.name:
-                window['-PATH-'].update(Path(path))
-            elif values['mode'] == Modes.recursive.name:
-                window['-PATH-'].update(Path(path).parent / '**/*')
-            else: # elif values['mode'] == Modes.dir.name:
-                window['-PATH-'].update(Path(path).parent / '*')
+            pass
 
         elif event == 'Add':
-            path = values['-PATH-']
-            if path and path not in input_paths:
-                input_paths.append(path)
-                window['inputs'].update(input_paths)
-                # window['inputs'].Widget.select_set(0)
+            path = Path(values['-PATH-'])
+            if not path:
+                continue
+            paths = []
+            if values['mode'] == Modes.file.name:
+                paths.append(path)
+            else:
+                patterns = values["pattern"]
+                patterns = file_types.get(patterns, [patterns])
+                if not path.is_dir():
+                    path = path.parent
+                if values['mode'] == Modes.recursive.name:
+                    path = path / '**'
+                # elif values['mode'] == Modes.dir.name:
+                #     pass
+                for pattern in patterns:
+                    paths.append(path / pattern)
+            for path in paths:
+                if path not in input_paths:
+                    input_paths.append(path)
+                    window['inputs'].update(input_paths)
+                    # window['inputs'].Widget.select_set(0)
 
         elif event == 'Clear':
             # input_paths.clear()
