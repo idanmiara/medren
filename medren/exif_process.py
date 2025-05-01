@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from enum import IntEnum
 from typing import Any
 
+from medren.timezone_offset import get_timezone_offset
+
 
 class ExifStat(IntEnum):
     UnknownErr = 0
@@ -16,8 +18,9 @@ class ExifStat(IntEnum):
 
 
 ExifRaw = dict
-Goff = int | None | bool
+Goff = float | int | None | bool
 
+logger = logging.getLogger()
 
 @dataclass
 class ExifClass:
@@ -36,10 +39,12 @@ class ExifClass:
     t_org: str | None = None
     t_dig: str | None = None
     t_img: str | None = None
+    t_fn: str | None = None
 
     goff: Goff = None
     goff_dig: Goff = None
     goff_img: Goff = None
+    goff_ll: Goff = None
 
     make: str | None = None
     model: str | None = None
@@ -65,6 +70,23 @@ class ExifClass:
             lat=self.lat or none_value,
             lon=self.lon or none_value,
         )
+
+    def __post_init__(self):
+        self.goff_form_loc(logger)
+
+    def goff_form_loc(self, logger: logging.Logger):
+        try:
+            if self.lat and self.lon and self.dt:
+                self.goff_ll = get_timezone_offset(lat=self.lat, lon=self.lon, date=self.dt)
+                if not self.goff:
+                    # self.goff = self.goff_ll
+                    pass
+                elif self.goff == self.goff_ll:
+                    pass
+                else:
+                    logger.warning(f"time offset mismatch {self.goff} != {self.goff_ll} {self}")
+        except Exception as e:
+            logger.warning(f"Failed to fetch time offset {self} ({e})")
 
 
 makers = {
@@ -179,7 +201,7 @@ def parse_float(p, ref, digits: int) -> float | None:
     return p
 
 
-def parse_offset(goff: str | None, logger: logging.Logger) -> int | None:
+def parse_offset(goff: str | None, logger: logging.Logger) -> float | None:
     if not goff:
         return None
     try:
@@ -188,7 +210,7 @@ def parse_offset(goff: str | None, logger: logging.Logger) -> int | None:
             sign = 1 if goff[-6] == '+' else -1
             hours = int(goff[-5:-3])
             minutes = int(goff[-2:])
-            return sign * (hours * 60 + minutes)
+            return sign * (hours + minutes/60)
     except Exception as e:
         logger.debug(f"Could not parse offset {goff}: {e}")
     return None

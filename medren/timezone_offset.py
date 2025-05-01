@@ -3,14 +3,15 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 
-def get_timezone_offset(lat: float, lon: float, date: datetime):
+def get_timezone_offset(lat: float, lon: float, date: datetime, factor: float = 3600) -> float:
     """
-    Get timezone offset (in hours) for given latitude, longitude and date.
+    Get timezone offset (in hours, factor=3600) for given latitude, longitude and date.
 
     Args:
         lat (float): Latitude
         lon (float): Longitude
         date (datetime.date or datetime.datetime): Date to check (with or without time)
+        factor (float): offset in seconds will be divided by this number. use 3600 for hours, 60 for minutes
 
     Returns:
         float: Offset from UTC in hours (including DST if applicable)
@@ -27,8 +28,8 @@ def get_timezone_offset(lat: float, lon: float, date: datetime):
     tz = ZoneInfo(timezone_name)
     localized_dt = date.astimezone(tz)
     offset_seconds = localized_dt.utcoffset().total_seconds()
-    offset_hours = offset_seconds / 3600
-    return offset_hours
+    offset = offset_seconds / factor
+    return offset
 
 
 def test_timezeone_offset():

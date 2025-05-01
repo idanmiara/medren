@@ -44,3 +44,10 @@ def test_compare_exif_backends_partial(filename: list[Path], backends=available_
                     assert v0 == v1, field.name
             # assert e0.dt == e1.dt
 
+
+@pytest.mark.parametrize("filename", list(Path.glob(root, '*.mp4')))
+def test_mp4_datetime(filename: list[Path], backends=available_backends):
+    for backend in backends:
+        ex = backend_support[backend].func(filename, logger)
+        if ex and ex.goff_ll and ex.t_fn:
+            assert ex.t_fn != ex.t_org

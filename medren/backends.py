@@ -1,3 +1,4 @@
+import datetime
 import importlib
 import logging
 from dataclasses import dataclass
@@ -6,17 +7,17 @@ from typing import Callable, Any
 
 from medren.backend_piexif import get_best_dt
 from medren.consts import image_ext_with_exif
+from medren.datetime_from_filename import extract_datetime_from_filename
 from medren.exif_process import ExifClass, ExifStat, extract_datetime_local, extract_datetime_utc, parse_offset, \
     fix_make_model, parse_exif_datetime
+from medren.timezone_offset import get_timezone_offset
 
 
 def extract_piexif(path: Path | str, logger: logging.Logger) -> ExifClass | None:
     from medren.backend_piexif import piexif_get, piexif_get_raw
-    exif_dict, stat = piexif_get_raw(path, logger)
+    ex, stat = piexif_get(path, logger=logger)
     if stat == ExifStat.ValidExif:
-        ex, stat = piexif_get(exif_dict, ext=Path(path).suffix, logger=logger)
-        if stat == ExifStat.ValidExif:
-            return ex
+        return ex
     return None
 
 
@@ -85,6 +86,7 @@ def extract_exifread(path: Path | str, logger: logging.Logger) -> ExifClass | No
         if dt is None:
             return None
         t_img = get_tag_str(tags.get('Image DateTime'))
+        t_fn = extract_datetime_from_filename(path.name)
         dt = parse_exif_datetime(t_org)
 
         goff_org = get_offset_tag(tags.get('EXIF OffsetTimeOriginal'))
@@ -106,14 +108,14 @@ def extract_exifread(path: Path | str, logger: logging.Logger) -> ExifClass | No
         lat = parse_gps_tag(tags.get('GPS GPSLatitude'), tags.get('GPS GPSLatitudeRef'))
         lon = parse_gps_tag(tags.get('GPS GPSLongitude'), tags.get('GPS GPSLongitudeRef'))
         alt = get_tag_float(tags.get('GPS GPSAltitude'), 1)
-
-        return ExifClass(
+        ex = ExifClass(
             ext=Path(path).suffix,
 
             dt=dt,
             t_org=t_org,
             t_dig=t_dig,
             t_img=t_img,
+            t_fn=t_fn,
 
             goff=goff_org,
             goff_dig=goff_dig,
@@ -133,15 +135,16 @@ def extract_exifread(path: Path | str, logger: logging.Logger) -> ExifClass | No
 
             backend='exifread',
         )
+        # ex.goff_form_loc(logger=logger)
+        return ex
 
 
 def extract_hachoir(path: Path | str, logger: logging.Logger) -> ExifClass | None:
     from hachoir.metadata import extractMetadata
     from hachoir.parser import createParser
-    path = str(path)
-    parser = createParser(path)
+    path = Path(path)
+    parser = createParser(str(path))
     t_org = t_dig = t_img = dt = goff_org = goff_dig = goff_img = make = model = w = h = lat = lon = alt = None
-
     try:
         metadata = extractMetadata(parser) if parser else None
         if metadata:
@@ -176,13 +179,15 @@ def extract_hachoir(path: Path | str, logger: logging.Logger) -> ExifClass | Non
                 return None
             dt = parse_exif_datetime(t_org or t_dig)
             make, model = fix_make_model(make, model)
+            t_fn = extract_datetime_from_filename(path.name)
             return ExifClass(
-                ext=Path(path).suffix,
+                ext=path.suffix,
 
                 dt=dt,
                 t_org=t_org,
                 t_dig=t_dig,
                 t_img=t_img,
+                t_fn=t_fn,
 
                 goff=goff_org,
                 goff_dig=goff_dig,

@@ -3,6 +3,7 @@ from pathlib import Path
 
 import piexif
 
+from medren.datetime_from_filename import extract_datetime_from_filename
 from medren.exif_process import (
     ExifClass,
     ExifRaw,
@@ -63,7 +64,12 @@ def get_best_dt(dts: list[str | None]) -> tuple[str | None, ExifStat]:
                 return dt, ExifStat.ValidExif
     return None, stat
 
-def piexif_get(exif_dict: ExifRaw, ext: str, logger: logging.Logger) -> tuple[ExifClass | None, ExifStat]:
+def piexif_get(path: Path | str, logger: logging.Logger) -> tuple[ExifClass | None, ExifStat]:
+    path = Path(path)
+    exif_dict, stat = piexif_get_raw(path, logger)
+    if stat != ExifStat.ValidExif:
+        return None, stat
+    ext = path.suffix
     try:
         _0th = exif_dict.get('0th', {})
         exif = exif_dict.get('Exif', {})
@@ -78,12 +84,12 @@ def piexif_get(exif_dict: ExifRaw, ext: str, logger: logging.Logger) -> tuple[Ex
 
         dt, stat = get_best_dt([t_org, t_dig])
         if dt is None:
-            return dt, stat
+            return None, stat
         # Purpose: The date and time of last modification of the file.
         # This tag often changes when the image is edited or modified by software.
         t_img = exif_decode(_0th.get(piexif.ImageIFD.DateTime))
+        t_fn = extract_datetime_from_filename(path.name)
         dt = parse_exif_datetime(dt)
-
 
         goff_org = parse_offset(exif_decode(exif.get(piexif.ExifIFD.OffsetTimeOriginal)), logger)
         goff_dig = parse_offset(exif_decode(exif.get(piexif.ExifIFD.OffsetTimeDigitized)), logger)
@@ -108,13 +114,14 @@ def piexif_get(exif_dict: ExifRaw, ext: str, logger: logging.Logger) -> tuple[Ex
         lon = parse_gps(gps.get(piexif.GPSIFD.GPSLongitude), gps.get(piexif.GPSIFD.GPSLongitudeRef))
         alt = parse_float(gps.get(piexif.GPSIFD.GPSAltitude), gps.get(piexif.GPSIFD.GPSAltitudeRef), 1)
 
-        e = ExifClass(
+        ex = ExifClass(
             ext=ext,
 
             dt=dt,
             t_org=t_org,
             t_dig=t_dig,
             t_img=t_img,
+            t_fn=t_fn,
 
             goff=goff_org,
             goff_dig=goff_dig,
@@ -135,8 +142,9 @@ def piexif_get(exif_dict: ExifRaw, ext: str, logger: logging.Logger) -> tuple[Ex
             backend='piexif',
             # all=exif_dict,
         )
-        return e, ExifStat.ValidExif
-    except Exception as e:
-        logger.warning(f"Could not get exif data from {exif_dict}: {e} using piexif")
+        # ex.goff_form_loc(logger=logger)
+        return ex, ExifStat.ValidExif
+    except Exception as ex:
+        logger.warning(f"Could not get exif data from {exif_dict}: {ex} using piexif")
         return None, ExifStat.UnknownErr
 
