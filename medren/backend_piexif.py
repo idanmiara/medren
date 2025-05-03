@@ -10,7 +10,7 @@ from medren.exif_process import (
     ExifStat,
     fix_make_model,
     is_timestamp_valid,
-    parse_exif_datetime,
+    parse_datetime_colon,
     parse_gps,
     parse_offset, parse_float,
 )
@@ -89,7 +89,7 @@ def piexif_get(path: Path | str, logger: logging.Logger) -> tuple[ExifClass | No
         # This tag often changes when the image is edited or modified by software.
         t_img = exif_decode(_0th.get(piexif.ImageIFD.DateTime))
         t_fn = extract_datetime_from_filename(path.name)
-        dt = parse_exif_datetime(dt)
+        dt = parse_datetime_colon(dt)
 
         goff_org = parse_offset(exif_decode(exif.get(piexif.ExifIFD.OffsetTimeOriginal)), logger)
         goff_dig = parse_offset(exif_decode(exif.get(piexif.ExifIFD.OffsetTimeDigitized)), logger)

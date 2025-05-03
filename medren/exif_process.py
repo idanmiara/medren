@@ -18,7 +18,7 @@ class ExifStat(IntEnum):
 
 
 ExifRaw = dict
-Goff = float | int | None | bool
+Goff = float | int | None
 
 logger = logging.getLogger()
 
@@ -36,6 +36,7 @@ class ExifClass:
     ext: str
     backend: str
     dt: datetime.datetime | None = None
+    is_utc: bool | None = None
     t_org: str | None = None
     t_dig: str | None = None
     t_img: str | None = None
@@ -76,15 +77,22 @@ class ExifClass:
 
     def goff_form_loc(self, logger: logging.Logger):
         try:
+            if self.is_utc and self.goff is not None:
+                self.is_utc = False
+                self.dt = self.dt + datetime.timedelta(hours=self.goff)
             if self.lat and self.lon and self.dt:
                 self.goff_ll = get_timezone_offset(lat=self.lat, lon=self.lon, date=self.dt)
-                if not self.goff:
-                    # self.goff = self.goff_ll
-                    pass
-                elif self.goff == self.goff_ll:
-                    pass
-                else:
-                    logger.warning(f"time offset mismatch {self.goff} != {self.goff_ll} {self}")
+                if self.goff_ll:
+                    if self.is_utc:
+                        self.is_utc = False
+                        self.dt = self.dt + datetime.timedelta(hours=self.goff_ll)
+                    if not self.goff:
+                        # self.goff = self.goff_ll
+                        pass
+                    elif self.goff == self.goff_ll:
+                        pass
+                    else:
+                        logger.warning(f"time offset mismatch {self.goff} != {self.goff_ll} {self}")
         except Exception as e:
             logger.warning(f"Failed to fetch time offset {self} ({e})")
 
@@ -223,21 +231,21 @@ def extract_datetime_utc(date_str: str, logger: logging.Logger) -> tuple[datetim
             goff = date_str[dt_len:]
             goff = parse_offset(goff, logger)
             date_str = date_str[:dt_len]
-        dt = datetime.datetime.strptime(date_str, "%Y:%m:%d %H:%M:%S")
+        dt = parse_datetime_colon(date_str)
     return dt, goff
 
-def parse_exif_datetime(s: str) -> datetime.datetime:
-    return datetime.datetime.strptime(s, "%Y:%m:%d %H:%M:%S")
+def parse_datetime_colon(date_str: str) -> datetime.datetime:
+    return datetime.datetime.strptime(date_str, "%Y:%m:%d %H:%M:%S")
 
-def extract_datetime_local(date_str: str, logger: logging.Logger) -> tuple[datetime.datetime | None, Goff]:
+def parse_datetime_dash(date_str: str, logger: logging.Logger) -> datetime.datetime | None:
     if not date_str:
-        return None, None
-    return datetime.datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S"), True
+        return None
+    return datetime.datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
 
 
-def is_timestamp_valid(s: str) -> bool:
+def is_timestamp_valid(date_str: str) -> bool:
     try:
-        datetime.datetime.strptime(s, "%Y:%m:%d %H:%M:%S")
+        datetime.datetime.strptime(date_str, "%Y:%m:%d %H:%M:%S")
         return True
     except Exception:
         return False

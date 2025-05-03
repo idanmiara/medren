@@ -1,20 +1,21 @@
-import datetime
+import importlib
 import importlib
 import logging
+import re
 from dataclasses import dataclass
+from datetime import timedelta
 from pathlib import Path
-from typing import Callable, Any
+from typing import Callable
 
 from medren.backend_piexif import get_best_dt
 from medren.consts import image_ext_with_exif
 from medren.datetime_from_filename import extract_datetime_from_filename
-from medren.exif_process import ExifClass, ExifStat, extract_datetime_local, extract_datetime_utc, parse_offset, \
-    fix_make_model, parse_exif_datetime
-from medren.timezone_offset import get_timezone_offset
+from medren.exif_process import ExifClass, ExifStat, parse_datetime_dash, extract_datetime_utc, parse_offset, \
+    fix_make_model, parse_datetime_colon
 
 
 def extract_piexif(path: Path | str, logger: logging.Logger) -> ExifClass | None:
-    from medren.backend_piexif import piexif_get, piexif_get_raw
+    from medren.backend_piexif import piexif_get
     ex, stat = piexif_get(path, logger=logger)
     if stat == ExifStat.ValidExif:
         return ex
@@ -23,9 +24,9 @@ def extract_piexif(path: Path | str, logger: logging.Logger) -> ExifClass | None
 
 def extract_exiftool(path: Path | str, logger: logging.Logger) -> ExifClass | None:
     import exiftool
-    path = str(path)
+    path = Path(path)
     with exiftool.ExifToolHelper() as et:
-        metadata = et.get_metadata(path)
+        metadata = et.get_metadata(str(path))
         if metadata and len(metadata) > 0:
             metadata = metadata[0]
             date_str = metadata.get('MakerNotes:TimeStamp') or \
@@ -33,7 +34,19 @@ def extract_exiftool(path: Path | str, logger: logging.Logger) -> ExifClass | No
                        metadata.get('QuickTime:CreateDate')
             if date_str:
                 dt, goff = extract_datetime_utc(date_str, logger)
-                return ExifClass(backend='exiftool', ext=Path(path).suffix, dt=dt, goff=goff)
+                is_utc = goff is None
+                lat = metadata.get('Composite:GPSLatitude')
+                lon = metadata.get('Composite:GPSLongitude')
+                if not lat or not lon:
+                    latlon = metadata.get('Composite:GPSPosition', metadata.get('QuickTime:GPSCoordinates'))
+                    if latlon:
+                        try:
+                            lat, lon = str(latlon).split(' ')
+                            lat = float(lat)
+                            lon = float(lon)
+                        except Exception:
+                            lat, lon = None, None
+                return ExifClass(backend='exiftool', ext=path.suffix, dt=dt, goff=goff, lat=lat, lon=lon, is_utc=is_utc)
     return None
 
 
@@ -87,7 +100,7 @@ def extract_exifread(path: Path | str, logger: logging.Logger) -> ExifClass | No
             return None
         t_img = get_tag_str(tags.get('Image DateTime'))
         t_fn = extract_datetime_from_filename(path.name)
-        dt = parse_exif_datetime(t_org)
+        dt = parse_datetime_colon(t_org)
 
         goff_org = get_offset_tag(tags.get('EXIF OffsetTimeOriginal'))
         goff_dig = get_offset_tag(tags.get('EXIF OffsetTimeDigitized'))
@@ -112,6 +125,7 @@ def extract_exifread(path: Path | str, logger: logging.Logger) -> ExifClass | No
             ext=Path(path).suffix,
 
             dt=dt,
+            is_utc=False,
             t_org=t_org,
             t_dig=t_dig,
             t_img=t_img,
@@ -144,7 +158,7 @@ def extract_hachoir(path: Path | str, logger: logging.Logger) -> ExifClass | Non
     from hachoir.parser import createParser
     path = Path(path)
     parser = createParser(str(path))
-    t_org = t_dig = t_img = dt = goff_org = goff_dig = goff_img = make = model = w = h = lat = lon = alt = None
+    t_org = t_dig = t_img = dt = goff_org = goff_dig = goff_img = make = model = w = h = iw = ih = lat = lon = alt = None
     try:
         metadata = extractMetadata(parser) if parser else None
         if metadata:
@@ -155,7 +169,7 @@ def extract_hachoir(path: Path | str, logger: logging.Logger) -> ExifClass | Non
                     continue
                 tag_name = tag_name[2:]
                 if tag_name == "Image width":
-                    iw = int(tag_val[:-7]) # pixels
+                    iw = int(tag_val[:-7])  # pixels
                 elif tag_name == "Image height":
                     ih = int(tag_val[:-7])
                 elif tag_name == "Camera model":
@@ -163,27 +177,28 @@ def extract_hachoir(path: Path | str, logger: logging.Logger) -> ExifClass | Non
                 elif tag_name == "Camera manufacturer":
                     make = tag_val
                 elif tag_name == "Date-time original":
-                    t_org = tag_val.replace('-',':')
+                    t_org = tag_val.replace('-', ':')
                 elif tag_name == "Date-time digitized":
-                    t_dig = tag_val.replace('-',':')
+                    t_dig = tag_val.replace('-', ':')
                 elif tag_name == "Creation date":
-                    t_img = tag_val.replace('-',':')
+                    t_img = tag_val.replace('-', ':')
                 elif tag_name == "Latitude":
                     lat = float(tag_val)
                 elif tag_name == "Longitude":
                     lon = float(tag_val)
                 elif tag_name == "Altitude":
-                    alt = round(float(tag_val[:-7]), 1) # meters
+                    alt = round(float(tag_val[:-7]), 1)  # meters
 
             if not t_org and not t_dig:
                 return None
-            dt = parse_exif_datetime(t_org or t_dig)
+            dt = parse_datetime_colon(t_org or t_dig)
             make, model = fix_make_model(make, model)
             t_fn = extract_datetime_from_filename(path.name)
             return ExifClass(
                 ext=path.suffix,
 
                 dt=dt,
+                is_utc=False,
                 t_org=t_org,
                 t_dig=t_dig,
                 t_img=t_img,
@@ -216,43 +231,71 @@ def extract_hachoir(path: Path | str, logger: logging.Logger) -> ExifClass | Non
 
 def extract_pymediainfo(path: Path | str, logger: logging.Logger) -> ExifClass | None:
     from pymediainfo import MediaInfo
+    path = Path(path)
     media_info = MediaInfo.parse(path)
     for track in media_info.tracks:
         if track.track_type == 'General' and track.encoded_date:
             date_str = track.encoded_date.split('UTC')[0].strip()
-            dt, goff = extract_datetime_local(date_str, logger)
-            return ExifClass(backend='pymediainfo', ext=Path(path).suffix, dt=dt, goff=goff)
+            dt = parse_datetime_dash(date_str, logger)
+            is_utc = True
+            try:
+                lat, lon = parse_location_string(track.xyz)
+            except Exception:
+                lat, lon = None, None
+            return ExifClass(backend='pymediainfo', ext=path.suffix, dt=dt, lat=lat, lon=lon, is_utc=is_utc)
     return None
+
+
+def parse_location_string(s: str) -> tuple[float | None, float | None]:
+    if not s:
+        return None, None
+    # '+32.1234+034.1234/'
+    pattern = r'([+-]\d+\.\d+)([+-]\d+\.\d+)/'
+    match = re.match(pattern, s)
+    if match:
+        lat = float(match.group(1))
+        lon = float(match.group(2))
+        return lat, lon
+    return None, None
 
 
 def extract_ffmpeg(path: Path | str, logger: logging.Logger) -> ExifClass | None:
     import ffmpeg
     path = str(path)
     probe = ffmpeg.probe(path)
-    date_str = probe['format']['tags'].get('creation_time')
+    tags = probe['format']['tags']
+    date_str = tags.get('creation_time')
     if date_str:
         date_str = date_str.split('.')[0].replace('T', ' ')
-        dt, goff = extract_datetime_local(date_str, logger)
-        return ExifClass(backend='ffmpeg', ext=Path(path).suffix, dt=dt, goff=goff)
+        dt = parse_datetime_dash(date_str, logger)
+        is_utc = True
+        lat, lon = parse_location_string(tags.get('location'))
+        goff = tags.get('com.samsung.android.utc_offset')
+        if goff:
+            goff = float(goff)
+        return ExifClass(backend='ffmpeg', ext=Path(path).suffix, dt=dt, goff=goff, lat=lat, lon=lon, is_utc=is_utc)
     return None
 
 
 @dataclass
 class Backend:
-    name: str
+    module: str
+    package: str
     ext: list[str] | None
     func: Callable[[Path | str, logging.Logger], ExifClass | None]
     dep: list[str]
 
 
-backend_support = {b.name: b for b in [
-        Backend(name='exifread', ext=None, func=extract_exifread, dep=[]),
-        Backend(name='piexif', ext=image_ext_with_exif, func=extract_piexif, dep=[]),
-        Backend(name='pyexiftool', ext=None, func=extract_exiftool, dep=['exiftool.exe']),
-        Backend(name='hachoir', ext=None, func=extract_hachoir, dep=['hachoir-metadata.exe']),
-        Backend(name='pymediainfo', ext=None, func=extract_pymediainfo, dep=['MediaInfo.dll']),
-        Backend(name='ffmpeg-python', ext=None, func=extract_ffmpeg, dep=['ffprobe.exe']),
-    ]
-}
+backend_support = {b.module: b for b in [
+    Backend(module='exifread', package='exifread', ext=None, func=extract_exifread, dep=[]),
+    Backend(module='piexif', package='piexif', ext=image_ext_with_exif, func=extract_piexif, dep=[]),
+    Backend(module='exiftool', package='pyexiftool', ext=None, func=extract_exiftool, dep=['exiftool.exe']),
+    Backend(module='hachoir', package='hachoir', ext=None, func=extract_hachoir, dep=['hachoir-metadata.exe']),
+    Backend(module='pymediainfo', package='pymediainfo', ext=None, func=extract_pymediainfo, dep=['MediaInfo.dll']),
+    Backend(module='ffmpeg', package='ffmpeg-python', ext=None, func=extract_ffmpeg, dep=['ffprobe.exe']),
+]
+                   }
+
 backend_priority = list(backend_support.keys())
 available_backends = [backend for backend in backend_priority if importlib.util.find_spec(backend)]
+print(available_backends)
