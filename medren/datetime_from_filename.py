@@ -35,18 +35,3 @@ def extract_datetime_from_filename(filename):
             except ValueError:
                 continue
     return None
-
-# Examples:
-examples = [
-    "IMG_20240501_203015.jpg",
-    "VID_20240501_203015.mp4",
-    "20240501_203015.jpg",
-    "Screenshot_20240501-203015.png",
-    "2024-05-01 20.30.15.jpg",
-    "DSC20240501.jpg",
-    "randomfile.jpg"
-]
-
-for fname in examples:
-    dt = extract_datetime_from_filename(fname)
-    print(f"{fname} -> {dt}")
