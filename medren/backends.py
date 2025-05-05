@@ -1,16 +1,16 @@
 import importlib
-import importlib
 import logging
 import re
 from dataclasses import dataclass
-from datetime import timedelta
 from pathlib import Path
 from typing import Callable
+
+from exiftool.exiftool import ENCODING_UTF8
 
 from medren.backend_piexif import get_best_dt
 from medren.consts import image_ext_with_exif
 from medren.datetime_from_filename import extract_datetime_from_filename
-from medren.exif_process import ExifClass, ExifStat, parse_datetime_dash, extract_datetime_utc, parse_offset, \
+from medren.exif_process import ExifClass, ExifStat, parse_datetime_dash, extract_datetime_with_optional_goff, parse_offset, \
     fix_make_model, parse_datetime_colon
 
 
@@ -25,16 +25,17 @@ def extract_piexif(path: Path | str, logger: logging.Logger) -> ExifClass | None
 def extract_exiftool(path: Path | str, logger: logging.Logger) -> ExifClass | None:
     import exiftool
     path = Path(path)
-    with exiftool.ExifToolHelper() as et:
+    with (exiftool.ExifToolHelper(encoding=ENCODING_UTF8) as et):
         metadata = et.get_metadata(str(path))
         if metadata and len(metadata) > 0:
             metadata = metadata[0]
-            date_str = metadata.get('MakerNotes:TimeStamp') or \
-                       metadata.get('EXIF:DateTimeOriginal') or \
-                       metadata.get('QuickTime:CreateDate')
+            exif_date = metadata.get('EXIF:DateTimeOriginal')
+            date_str = exif_date or \
+                        metadata.get('MakerNotes:TimeStamp') or \
+                        metadata.get('QuickTime:CreateDate')
             if date_str:
-                dt, goff = extract_datetime_utc(date_str, logger)
-                is_utc = goff is None
+                dt, goff = extract_datetime_with_optional_goff(date_str, logger)
+                is_utc = goff is None and exif_date is None
                 lat = metadata.get('Composite:GPSLatitude')
                 lon = metadata.get('Composite:GPSLongitude')
                 if not lat or not lon:
@@ -181,7 +182,9 @@ def extract_hachoir(path: Path | str, logger: logging.Logger) -> ExifClass | Non
                 elif tag_name == "Date-time digitized":
                     t_dig = tag_val.replace('-', ':')
                 elif tag_name == "Creation date":
-                    t_img = tag_val.replace('-', ':')
+                    if not t_img:
+                        # sometimes this entry appears twice (why?), the first occurrence is the correct one
+                        t_img = tag_val.replace('-', ':')
                 elif tag_name == "Latitude":
                     lat = float(tag_val)
                 elif tag_name == "Longitude":
@@ -259,21 +262,37 @@ def parse_location_string(s: str) -> tuple[float | None, float | None]:
     return None, None
 
 
+def parse_goff_string(s: str) -> float | None:
+    # +0300 means +03:00
+    if not s:
+        return None
+    try:
+        s = float(s)
+        h = s / 100
+        m = s % 100
+        return h + m/60
+    except Exception:
+        return None
+
+
 def extract_ffmpeg(path: Path | str, logger: logging.Logger) -> ExifClass | None:
     import ffmpeg
-    path = str(path)
-    probe = ffmpeg.probe(path)
-    tags = probe['format']['tags']
+    path = Path(path)
+    try:
+        probe = ffmpeg.probe(str(path))
+    except Exception:
+        return None
+    tags = probe['format'].get('tags')
+    if not tags:
+        return None
     date_str = tags.get('creation_time')
     if date_str:
         date_str = date_str.split('.')[0].replace('T', ' ')
         dt = parse_datetime_dash(date_str, logger)
         is_utc = True
         lat, lon = parse_location_string(tags.get('location'))
-        goff = tags.get('com.samsung.android.utc_offset')
-        if goff:
-            goff = float(goff)
-        return ExifClass(backend='ffmpeg', ext=Path(path).suffix, dt=dt, goff=goff, lat=lat, lon=lon, is_utc=is_utc)
+        goff = parse_goff_string(tags.get('com.samsung.android.utc_offset'))
+        return ExifClass(backend='ffmpeg', ext=path.suffix, dt=dt, goff=goff, lat=lat, lon=lon, is_utc=is_utc)
     return None
 
 

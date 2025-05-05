@@ -87,8 +87,8 @@ class ExifClass:
                         self.is_utc = False
                         self.dt = self.dt + datetime.timedelta(hours=self.goff_ll)
                     if not self.goff:
-                        # self.goff = self.goff_ll
-                        pass
+                        self.goff = self.goff_ll
+                        # pass
                     elif self.goff == self.goff_ll:
                         pass
                     else:
@@ -223,7 +223,7 @@ def parse_offset(goff: str | None, logger: logging.Logger) -> float | None:
         logger.debug(f"Could not parse offset {goff}: {e}")
     return None
 
-def extract_datetime_utc(date_str: str, logger: logging.Logger) -> tuple[datetime.datetime | None, Goff]:
+def extract_datetime_with_optional_goff(date_str: str, logger: logging.Logger) -> tuple[datetime.datetime | None, Goff]:
     dt, goff = None, None
     dt_len = 19
     if len(date_str) >= dt_len:

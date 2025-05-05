@@ -1,7 +1,9 @@
 from dataclasses import fields
+from datetime import timedelta
 from multiprocessing.util import get_logger
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 from medren.backends import backend_support, available_backends
@@ -41,13 +43,23 @@ def test_compare_exif_backends_partial(filename: list[Path], backends=available_
                 if v0 and v1:
                     # if v0 != v1:
                     #     e1 = backend_support[backend].func(filename, logger)
-                    assert v0 == v1, field.name
+                    msg = (e0.backend, e1.backend, field.name)
+                    if isinstance(v0, float) and isinstance(v1, float):
+                        np.testing.assert_allclose(v1, v0, err_msg=msg)
+                    else:
+                        assert v1 == v0, msg
             # assert e0.dt == e1.dt
 
 
-@pytest.mark.parametrize("filename", list(Path.glob(root, '*.mp4')))
-def test_mp4_datetime(filename: list[Path], backends=available_backends):
+@pytest.mark.parametrize("filename", list(Path.glob(root, '*.*')))
+def test_filename_datetime_consistency(filename: list[Path], backends=available_backends):
     for backend in backends:
         ex = backend_support[backend].func(filename, logger)
-        if ex and ex.goff_ll and ex.t_fn:
-            assert ex.t_fn != ex.t_org
+        if ex and ex.t_fn and ex.t_img == ex.t_org:
+            # ex.dt_img != ex.dt_org indicates that the photo might have been edited, so the filename datetime is not reliable
+            dt = ex.t_fn
+            filename_time_is_utc = ex.make and "google" in ex.make.lower()
+            # Google Pixel 6 datetime in filename is UTC, as appose to Samsung
+            if filename_time_is_utc:
+                dt = dt + timedelta(hours=ex.goff)
+            assert dt == ex.dt, (ex.backend, ex.dt, ex.t_fn, ex.goff)

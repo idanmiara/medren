@@ -52,7 +52,7 @@ def piexif_get_raw(filename: Path | str, logger: logging.Logger) -> tuple[ExifRa
 
         return exif_dict, ExifStat.ValidExif
     except Exception as e:
-        logger.warning(f"Could not get raw exif data from {filename}: {e} using piexif")
+        logger.warning(f"{piexif}: Could not get raw exif data from {filename}: {e}")
         return None, ExifStat.UnknownErr
 
 def get_best_dt(dts: list[str | None]) -> tuple[str | None, ExifStat]:
@@ -87,6 +87,7 @@ def piexif_get(path: Path | str, logger: logging.Logger) -> tuple[ExifClass | No
             return None, stat
         # Purpose: The date and time of last modification of the file.
         # This tag often changes when the image is edited or modified by software.
+        # If the photo was edited on the phone, The date in the filename might correspond to this datetime.
         t_img = exif_decode(_0th.get(piexif.ImageIFD.DateTime))
         t_fn = extract_datetime_from_filename(path.name)
         dt = parse_datetime_colon(dt)
@@ -118,6 +119,7 @@ def piexif_get(path: Path | str, logger: logging.Logger) -> tuple[ExifClass | No
             ext=ext,
 
             dt=dt,
+            is_utc=False,
             t_org=t_org,
             t_dig=t_dig,
             t_img=t_img,
@@ -145,6 +147,6 @@ def piexif_get(path: Path | str, logger: logging.Logger) -> tuple[ExifClass | No
         # ex.goff_form_loc(logger=logger)
         return ex, ExifStat.ValidExif
     except Exception as ex:
-        logger.warning(f"Could not get exif data from {exif_dict}: {ex} using piexif")
+        logger.warning(f"{piexif}: Could not get exif data from {exif_dict}: {ex}")
         return None, ExifStat.UnknownErr
 

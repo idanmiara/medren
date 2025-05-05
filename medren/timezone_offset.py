@@ -32,7 +32,7 @@ def get_timezone_offset(lat: float, lon: float, date: datetime, factor: float = 
     return offset
 
 
-def test_timezeone_offset():
+def test_timezone_offset():
     tlv_lat_lng = 32.08, 34.78
     winter_date = datetime(2025, 1, 1)
     offset = get_timezone_offset(*tlv_lat_lng, date=winter_date)
@@ -42,10 +42,10 @@ def test_timezeone_offset():
     offset = get_timezone_offset(*tlv_lat_lng, date=summer_date)
     assert offset == 3
 
-# Example usage:
-if __name__ == "__main__":
+def test_timezone_offset2():
     lat = 40.7128
     lon = -74.0060
     date = datetime(2025, 6, 15)
     offset = get_timezone_offset(lat, lon, date)
     print(f"Timezone offset: {offset} hours")
+    assert offset == -4
