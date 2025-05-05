@@ -3,13 +3,16 @@ import datetime
 import json
 import logging
 import os
+from copy import copy
 from enum import Enum
 from pathlib import Path
+from typing import Any
 
 import FreeSimpleGUI as sg  # noqa: N813
 import pyperclip
 
 from medren import __version__
+from medren.backends import available_backends
 from medren.renamer import (
     MEDREN_DIR,
     PROFILES_DIR,
@@ -19,7 +22,7 @@ from medren.consts import (
     DEFAULT_DATETIME_FORMAT,
     DEFAULT_PROFILE_NAME,
     DEFAULT_SEPARATOR,
-    DEFAULT_TEMPLATE,
+    DEFAULT_TEMPLATE, file_types,
 )
 from medren.profiles import Modes, profile_keys, profiles
 
@@ -28,7 +31,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 saved_keys = [
-    'inputs', 'profile',
+    'inputs', 'profile', 'pattern', 'backends',
     ]
 
 # Settings file path
@@ -102,6 +105,13 @@ def get_profile_names():
     return saved_profile_names, built_in_profile_names, all_profile_names
 
 
+def override_settings(d: dict[str, Any], overrides: dict[str, Any]):
+    for k, v in overrides.items():
+        if v:
+            d[k] = v
+    return d
+
+
 def main():  # noqa: PLR0915, PLR0912
     args = parse_args()
 
@@ -116,8 +126,8 @@ def main():  # noqa: PLR0915, PLR0912
         loaded_values['profile'] = args.profile
 
     profile_name = loaded_values.get('profile')
-    loaded_values = loaded_values | load_profile(profile_name)
-    loaded_values.update(args_vars)
+    loaded_values = override_settings(loaded_values, load_profile(profile_name))
+    loaded_values = override_settings(loaded_values, args_vars)
 
     separators_layout = [sg.Text('separator:'),
                          sg.Input(default_text=DEFAULT_SEPARATOR, key='separator', tooltip='{s}', size=(3, 1))]
@@ -127,13 +137,14 @@ def main():  # noqa: PLR0915, PLR0912
         [sg.Text('Path:'),
         sg.Input(key='-PATH-', enable_events=True, expand_x=True),
         sg.FileBrowse(button_text='Browse', key='-BROWSE-', file_types=(('All Files', '*.*'),)),
+        sg.Combo(list(file_types.keys()), default_value="*", key='pattern', readonly=False, size=(10, 1)),
         sg.Text('Mode:'), sg.Combo([m.name for m in Modes], default_value=Modes.dir.name, key='mode', readonly=True),
         ],
 
         [sg.Text('Profile:'),
          sg.Combo(all_profile_names, default_value=DEFAULT_PROFILE_NAME, key='profile', size=(15, 1)),
-         sg.Button('Save Profile'),
          sg.Button('Load Profile'),
+         sg.Button('Save Profile'),
          sg.Button('Delete Profile'),
          ],
 
@@ -142,8 +153,8 @@ def main():  # noqa: PLR0915, PLR0912
         sg.Button('Preview'),
         sg.Button('Rename'),
         sg.Button('Clear'),
-        sg.Button('Save Settings'),
         sg.Button('Load Settings'),
+        sg.Button('Save Settings'),
         ],
 
         [sg.Text('Template:'), sg.Input(default_text=DEFAULT_TEMPLATE, expand_x=True, key='template', size=(30, 1))],
@@ -165,20 +176,34 @@ def main():  # noqa: PLR0915, PLR0912
     top_left_column = sg.Column(top_left_layout, vertical_alignment='top', expand_x=True)
 
     # Top-right with listbox
+    class InputsRightClickCommand(Enum):
+        clear_inputs = 'Clear Inputs'
+    inputs_right_click_items = [c.value for c in InputsRightClickCommand]
     top_right_column = sg.Column([
         [sg.Text('Added Input Paths:'), sg.Button('About MedRen v' + __version__, key='-VERSION-')],
-        [sg.Listbox(values=[], size=(100, 8), key='inputs', expand_x=True, expand_y=True)]
-    ], vertical_alignment='top')
+        [sg.Listbox(values=[], size=(50, 8), key='inputs', expand_x=True, expand_y=True)]
+    ], vertical_alignment='top', right_click_menu=['', inputs_right_click_items])
 
-    # Right-click menu
-    class RightClickCommand(Enum):
+    class BackendsRightClickCommand(Enum):
+        backend_move_to_top = 'Move backend to the top'
+        backend_move_to_bottom = 'Move backend to the bottom'
+        backend_remove = 'Remove backend'
+        backend_reset = 'Reset backends priorities'
+    backends_right_click_items = [c.value for c in BackendsRightClickCommand]
+    top_right_column2 = sg.Column([
+        [sg.Text('Backends:')],
+        [sg.Listbox(values=available_backends, size=(10, 8), key='backends', expand_x=True, expand_y=True)]
+    ], vertical_alignment='top', right_click_menu=['', backends_right_click_items])
+
+
+    # Bottom layout: table
+    class TableRightClickCommand(Enum):
         org = 'Copy Original'
         new = 'Copy New'
         both = 'Copy Original -> New'
         csv = 'Copy CSV'
-    right_click_menu = ['', [c.name for c in RightClickCommand]]
-
-    # Bottom layout: table
+        select_all = 'Select all items'
+    table_right_click_items = [c.value for c in TableRightClickCommand]
     bottom_layout = [sg.Table(
         values=[],
         headings=['Original Filename', 'New Filename', 'Datetime', 'goff', 'make', 'model', 'Backend'],
@@ -188,12 +213,12 @@ def main():  # noqa: PLR0915, PLR0912
         key='-TABLE-',
         expand_x=True,
         expand_y=True,
-        right_click_menu=right_click_menu
+        right_click_menu=['', table_right_click_items]
     )]
 
     # Final layout
     layout = [
-        [top_left_column, top_right_column],
+        [top_left_column, top_right_column2, top_right_column],
         [bottom_layout]
     ]
 
@@ -224,6 +249,8 @@ def main():  # noqa: PLR0915, PLR0912
         elif event == 'Save Settings':
             try:
                 if sg.popup_yes_no('Would you like to save settings?', title='Save Settings'):
+                    values = copy(values)
+                    values["backends"] = list(window['backends'].Values)
                     save_settings(values=values, filename=settings_filename)
             except Exception as e   :
                 logger.error(f"Error saving settings: {e}")
@@ -273,20 +300,34 @@ def main():  # noqa: PLR0915, PLR0912
 
         # Handle file/directory selection
         elif event == '-PATH-':
-            path = values['-PATH-']
-            if values['mode'] == Modes.file.name:
-                window['-PATH-'].update(Path(path))
-            elif values['mode'] == Modes.recursive.name:
-                window['-PATH-'].update(Path(path).parent / '**/*')
-            else: # elif values['mode'] == Modes.dir.name:
-                window['-PATH-'].update(Path(path).parent / '*')
+            pass
 
         elif event == 'Add':
-            path = values['-PATH-']
-            if path and path not in input_paths:
-                input_paths.append(path)
-                window['inputs'].update(input_paths)
-                # window['inputs'].Widget.select_set(0)
+            path = values['-PATH-'].strip()
+            if not path:
+                continue
+            path = Path(path)
+            if not path:
+                continue
+            paths = []
+            if values['mode'] == Modes.file.name:
+                paths.append(path)
+            else:
+                patterns = values["pattern"]
+                patterns = file_types.get(patterns, [patterns])
+                if not path.is_dir():
+                    path = path.parent
+                if values['mode'] == Modes.recursive.name:
+                    path = path / '**'
+                # elif values['mode'] == Modes.dir.name:
+                #     pass
+                for pattern in patterns:
+                    paths.append(path / pattern)
+            for path in paths:
+                if path not in input_paths:
+                    input_paths.append(path)
+                    window['inputs'].update(input_paths)
+                    # window['inputs'].Widget.select_set(0)
 
         elif event == 'Clear':
             # input_paths.clear()
@@ -307,6 +348,7 @@ def main():  # noqa: PLR0915, PLR0912
                     separator=values['separator'],
                     normalize=values['normalize'],
                     suffix=values['suffix'],
+                    backends=list(window['backends'].Values),
                     recursive=recursive,
                 )
                 preview = renamer.generate_renames(input_paths, resolve_names=True)
@@ -327,19 +369,42 @@ def main():  # noqa: PLR0915, PLR0912
             else:
                 sg.popup('Nothing to rename. Please preview first.')
 
-        elif event.startswith('Copy'):
+        elif event in table_right_click_items:
             if values['-TABLE-']:
-                if event == RightClickCommand.org.name:
-                    text = '\n'.join(table_data[i][0] for i in values['-TABLE-'])
-                elif event == RightClickCommand.new.name:
-                    text = '\n'.join(table_data[i][1] for i in values['-TABLE-'])
-                elif event == RightClickCommand.both.name:
+                if event == TableRightClickCommand.select_all.value:
+                    # window['-TABLE-']
+                    continue
+                if event == TableRightClickCommand.org.value:
+                    text = '\n'.join(f"{table_data[i][0]}" for i in values['-TABLE-'])
+                elif event == TableRightClickCommand.new.value:
+                    text = '\n'.join(f"{table_data[i][1]}" for i in values['-TABLE-'])
+                elif event == TableRightClickCommand.both.value:
                     text = '\n'.join(f"{table_data[i][0]} -> {table_data[i][1]}" for i in values['-TABLE-'])
-                elif event == RightClickCommand.csv.name:
-                    text = '\n'.join(f"{','.join(table_data[i])}" for i in values['-TABLE-'])
+                elif event == TableRightClickCommand.csv.value:
+                    text = '\n'.join(f"{','.join([str(x) for x in table_data[i]])}" for i in values['-TABLE-'])
                 else:
                     text = 'Unknown operation'
                 pyperclip.copy(text)
+        elif event == InputsRightClickCommand.clear_inputs.value:
+            window['inputs'].update([])
+        elif event in backends_right_click_items:
+            if event == BackendsRightClickCommand.backend_reset.value:
+                backends = list(available_backends)
+            else:
+                move_to_top = event == BackendsRightClickCommand.backend_move_to_top.value
+                remove_backend = event == BackendsRightClickCommand.backend_remove.value
+                selected = values['backends']
+                backends = list(window['backends'].Values)
+                for item in selected:
+                    backends.remove(item)
+                    if remove_backend:
+                        pass
+                    elif move_to_top:
+                        backends.insert(0, item)
+                    else:
+                        backends.append(item)
+            window['backends'].update(values=backends)
+
 
     window.close()
 

@@ -2,14 +2,20 @@ import csv
 import glob
 import hashlib
 import logging
+import math
 import os
 import re
 from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from medren.backends import ExifClass, available_backends, backend_support, extension_normalized
-from medren.consts import DEFAULT_DATETIME_FORMAT, DEFAULT_TEMPLATE, DEFAULT_SEPARATOR, GENERIC_PATTERNS
+from geopy import Nominatim
+from openlocationcode.openlocationcode import encode
+
+from medren.backends import ExifClass, available_backends, backend_support
+from medren.consts import DEFAULT_DATETIME_FORMAT, DEFAULT_TEMPLATE, DEFAULT_SEPARATOR, GENERIC_PATTERNS, \
+    extension_normalized
+from medren.util import filename_safe
 
 logger = logging.getLogger(__name__)
 
@@ -35,11 +41,23 @@ class Renamer:
     separator: str = field(default=DEFAULT_SEPARATOR)  # The separator between parts of the name
     backends: list[str] | None = None  # The backends to use for metadata extraction
     recursive: bool = field(default=False)  # Whether to recursively search for files
+    do_calc_hash: bool | None = None
+    do_calc_loc: bool | None = None
+    do_calc_pluscode: bool | None = None
+    geolocator: Nominatim | None = None
 
     def __post_init__(self):
         """Initialize backends after instance creation."""
         self.prefix = self.prefix or ''
-        self.backends = self.backends or available_backends
+        if not self.backends:
+            self.backends = available_backends
+        else:
+            self.backends = [b for b in self.backends if b in available_backends]
+        self.do_calc_hash = '{sha256}' in self.template
+        self.do_calc_loc = '{address}' in self.template
+        self.do_calc_pluscode = '{pluscode}' in self.template
+        if self.do_calc_loc:
+            self.geolocator = Nominatim(user_agent="medren")
 
     def is_generic(self, filename: str) -> bool:
         """
@@ -81,6 +99,7 @@ class Renamer:
         """
         ext = os.path.splitext(path)[1].lower()
         ext = extension_normalized.get(ext, ext)
+        path = str(path)
         for backend in self.backends:
             supported_exts = backend_support[backend].ext
             if supported_exts is None or ext in supported_exts:
@@ -89,7 +108,7 @@ class Renamer:
                     if ex:
                         return ex
                 except Exception as e:
-                    logger.debug(f"Could not extract datetime from {path}: {e} using {backend}")
+                    logger.debug(f"{backend}: Could not extract datetime from {path}: {e}")
         logger.warning(f"No datetime found for {path}")
         return None
 
@@ -139,22 +158,34 @@ class Renamer:
             ex = self.fetch_meta(path)
             if ex is not None:
                 dt_and_paths.append((Path(path), ex))
-                logger.debug(f"Fetched datetime {ex.dt} ({ex.goff=}) for {path} using {ex.backend}")
+                logger.debug(f"{ex.backend}: Fetched datetime {ex.dt} ({ex.goff=}) for {path}")
         dt_and_paths.sort(key=lambda x: x[1].dt)
 
         s = self.separator
 
-        none_value = '?'
-        do_calc_hash = '{sha256}' in self.template
+        none_value = math.nan
+        none_value_s = str(none_value)
+
         for path, ex in dt_and_paths:
             try:
                 name = path.stem
                 clean_name = self.get_clean_name(name)
                 suffix = self.suffix
-                ext = path.suffix
+                ext = path.suffix.lower()
                 datetime_str = ex.dt.strftime(self.datetime_format)
                 exif_kwargs = ex.get_exif_kwargs(none_value=none_value)
-                sha256 = hash_file(path) if do_calc_hash else ''
+                sha256 = hash_file(path) if self.do_calc_hash else ''
+                address = None
+                pluscode = None
+                if self.do_calc_loc and ex.lat and ex.lon:
+                    try:
+                        location = self.geolocator.reverse(f"{ex.lat}, {ex.lon}")
+                    except Exception as e:
+                        logger.error(f"Could not get location info for: {ex.lat}, {ex.lon}: {e}")
+                        location = None
+                    if location and location.address:
+                        address = location.address
+                    pluscode = encode(ex.lat, ex.lon)
                 # Format the new filename using the template
                 new_name = self.template.format(
                     prefix=self.prefix or none_value,
@@ -164,6 +195,8 @@ class Renamer:
                     suffix=suffix or none_value,
                     idx=idx,
                     sha256=sha256,
+                    pluscode=pluscode or none_value,
+                    address=address or none_value,
                     s=s,
                     ext=ext,
                     **exif_kwargs,
@@ -172,7 +205,8 @@ class Renamer:
 
                 # Remove trailing separators from the new filename
                 new_stem, ext = os.path.splitext(new_name)
-                new_stem = new_stem.replace(none_value+s,'').replace(s+none_value,'').replace(none_value,'')
+                new_stem = new_stem.replace(none_value_s+s,'').replace(s+none_value_s,'').replace(none_value_s,'')
+                new_stem = filename_safe(new_stem)
                 # if s and new_stem.endswith(s):
                 #     new_stem = new_stem[:-len(s)]
                 # if s and new_stem.startswith(s):

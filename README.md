@@ -31,6 +31,13 @@ Or with command line arguments:
 medren path/to/directory --prefix "IMG_" --template "{prefix}{datetime}{suffix}{ext}"
 ```
 
+Install backends prerequisites on Windows
+```commandline
+choco install exiftool
+choco install mediainfo
+choco install ffmpeg
+```
+
 ### Command Line Arguments
 
 - `inputs`: Input paths (dirs, filenames or pattern)
