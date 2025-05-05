@@ -108,14 +108,26 @@ makers = {
 makers = {str(k).lower(): v for k, v in makers.items()}
 
 
-def nice_model(model: str) -> str:
-    spam_words = ('SAMSUNG-',)
-    for spam in spam_words:
-        model = model.replace(spam, '')
-    return model
+# def nice_model(model: str) -> str:
+#     spam_words = ('SAMSUNG-',)
+#     for spam in spam_words:
+#         model = model.replace(spam, '')
+#     return model
 
 
-def nice_make(make: str) -> str:
+def make_by_model(model: str | None) -> str | None:
+    if not model:
+        return None
+    parts = model.replace('_', ' ').replace('-', ' ').split(' ')
+    model_prefix = parts[0].lower()
+    model_prefix_to_make = {
+        "dmc": 'Panasonic',
+        "samsung": 'Samsung',
+    }
+    return model_prefix_to_make.get(model_prefix)
+
+
+def clean_make_model(name: str | None) -> str | None:
     # makes = ['Canon', 'HP', 'NIKON CORPORATION', 'OLYMPUS OPTICAL CO.,LTD', 'Google', 'FUJIFILM', 'SONY',
     # 'Panasonic', 'SAMSUNG', 'samsung', 'MOTOROLA', 'Hewlett-Packard', 'EASTMAN KODAK COMPANY', 'Apple',
     # 'NIKON', 'SANYO Electric Co.,Ltd',
@@ -123,42 +135,45 @@ def nice_make(make: str) -> str:
     # 'CASIO COMPUTER CO.,LTD.', 'Research In Motion', 'Minolta Co., Ltd.', 'Samsung Techwin', 'OLYMPUS CORPORATION',
     # 'Toshiba', 'LG Electronics', 'Nokia', 'Microtek', 'DIGITAL', 'AgfaPhoto GmbH', 'Xiaomi',
     # 'Hewlett-Packard Company', 'Sony Ericsson', 'Zoran Corporation', 'FUJI PHOTO FILM CO., LTD.']
-
+    if not name:
+        return None
+    name = fix_make_model_base(name)
     spam_words = (
         'CORPORATION', 'CO.,LTD', 'CO,', 'LTD', 'EASTMAN', 'COMPANY', 'Electric', 'IMAGING', 'CORP', 'Electronics',
         'COMPUTER', 'PHOTO', 'FILM', 'OPTICAL')
 
-    parts = make.split(sep=' ')
+    parts = name.split(sep=' ')
     maker_parts = []
     for part in parts:
-        if part not in spam_words:
+        if part.upper() not in spam_words:
             nice_part = makers.get(part.lower(), part)
             maker_parts.append(nice_part)
-    make = ' '.join(maker_parts)
-    return make
+    name = ' '.join(maker_parts)
+    return name
 
 
-def tag_friendly(s: str) -> str:
+def tag_friendly(s: str | None) -> str | None:
+    if not s:
+        return None
     return s.replace(' ', '-').replace('_', '-')
 
-
 def fix_make_model(make: str | None, model: str | None) -> tuple[str | None, str | None]:
-    make = fix_make_model_base(make)
-    model = fix_make_model_base(model)
-    if make:
-        make = nice_make(make)
-        if model:
-            model = nice_make(model)
-            model_parts = model.split(' ')
-            make_parts = [s.lower() for s in make.split(' ')]
-            new_parts = []
-            for part in model_parts:
-                if part.lower() not in make_parts:
-                    new_parts.append(part)
-            model = ' '.join(new_parts)
-            model = nice_model(model)
-    make = tag_friendly(make)
+    make = clean_make_model(make)
+    model = clean_make_model(model)
+    if make and model:
+        model_parts = model.replace('_',' ').replace('-', ' ').split(' ')
+        make_parts = make.lower().replace('_',' ').replace('-', ' ').split(' ')
+        new_parts = []
+        for part in model_parts:
+            if part.lower() not in make_parts:
+                # remove maker name from model
+                new_parts.append(part)
+        model = ' '.join(new_parts)
+        # model = nice_model(model)
+    elif model:
+        make = make_by_model(model)
     model = tag_friendly(model)
+    make = tag_friendly(make)
     return make, model
 
 

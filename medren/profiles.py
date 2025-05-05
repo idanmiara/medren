@@ -12,7 +12,7 @@ class Modes(StrEnum):
 
 @dataclass
 class Profile:
-    template: str = DEFAULT_TEMPLATE,
+    template: str = DEFAULT_TEMPLATE
     datetime_format: str = DEFAULT_DATETIME_FORMAT
     mode: Modes = Modes.dir
     normalize: bool = False

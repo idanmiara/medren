@@ -168,7 +168,7 @@ class Renamer:
                 name = path.stem
                 clean_name = self.get_clean_name(name)
                 suffix = self.suffix
-                ext = path.suffix
+                ext = path.suffix.lower()
                 datetime_str = ex.dt.strftime(self.datetime_format)
                 exif_kwargs = ex.get_exif_kwargs(none_value=none_value)
                 sha256 = hash_file(path) if self.do_calc_hash else ''

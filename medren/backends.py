@@ -5,8 +5,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
-from exiftool.exiftool import ENCODING_UTF8
-
 from medren.backend_piexif import get_best_dt
 from medren.consts import image_ext_with_exif
 from medren.datetime_from_filename import extract_datetime_from_filename
@@ -24,6 +22,7 @@ def extract_piexif(path: Path | str, logger: logging.Logger) -> ExifClass | None
 
 def extract_exiftool(path: Path | str, logger: logging.Logger) -> ExifClass | None:
     import exiftool
+    from exiftool.exiftool import ENCODING_UTF8
     path = Path(path)
     with (exiftool.ExifToolHelper(encoding=ENCODING_UTF8) as et):
         metadata = et.get_metadata(str(path))
@@ -38,6 +37,7 @@ def extract_exiftool(path: Path | str, logger: logging.Logger) -> ExifClass | No
                 is_utc = goff is None and exif_date is None
                 lat = metadata.get('Composite:GPSLatitude')
                 lon = metadata.get('Composite:GPSLongitude')
+                make, model = fix_make_model(metadata.get('MakerNotes:Make'), metadata.get('MakerNotes:Model'))
                 if not lat or not lon:
                     latlon = metadata.get('Composite:GPSPosition', metadata.get('QuickTime:GPSCoordinates'))
                     if latlon:
@@ -47,7 +47,7 @@ def extract_exiftool(path: Path | str, logger: logging.Logger) -> ExifClass | No
                             lon = float(lon)
                         except Exception:
                             lat, lon = None, None
-                return ExifClass(backend='exiftool', ext=path.suffix, dt=dt, goff=goff, lat=lat, lon=lon, is_utc=is_utc)
+                return ExifClass(backend='exiftool', ext=path.suffix, dt=dt, goff=goff, lat=lat, make=make, model=model, lon=lon, is_utc=is_utc)
     return None
 
 
@@ -92,6 +92,7 @@ def extract_exifread(path: Path | str, logger: logging.Logger) -> ExifClass | No
             return None
         return parse_offset(p.values, logger)
 
+    path = Path(path)
     with open(path, 'rb') as f:
         tags = exifread.process_file(f)
         t_org = get_tag_str(tags.get('EXIF DateTimeOriginal'))
@@ -123,7 +124,7 @@ def extract_exifread(path: Path | str, logger: logging.Logger) -> ExifClass | No
         lon = parse_gps_tag(tags.get('GPS GPSLongitude'), tags.get('GPS GPSLongitudeRef'))
         alt = get_tag_float(tags.get('GPS GPSAltitude'), 1)
         ex = ExifClass(
-            ext=Path(path).suffix,
+            ext=path.suffix,
 
             dt=dt,
             is_utc=False,
@@ -166,7 +167,7 @@ def extract_hachoir(path: Path | str, logger: logging.Logger) -> ExifClass | Non
             for item in metadata.exportPlaintext():
                 try:
                     tag_name, tag_val = item.split(": ")
-                except:
+                except Exception:
                     continue
                 tag_name = tag_name[2:]
                 if tag_name == "Image width":
@@ -292,7 +293,8 @@ def extract_ffmpeg(path: Path | str, logger: logging.Logger) -> ExifClass | None
         is_utc = True
         lat, lon = parse_location_string(tags.get('location'))
         goff = parse_goff_string(tags.get('com.samsung.android.utc_offset'))
-        return ExifClass(backend='ffmpeg', ext=path.suffix, dt=dt, goff=goff, lat=lat, lon=lon, is_utc=is_utc)
+        make, model = fix_make_model(tags.get('maker'), tags.get('model'))
+        return ExifClass(backend='ffmpeg', ext=path.suffix, make=make, model=model, dt=dt, goff=goff, lat=lat, lon=lon, is_utc=is_utc)
     return None
 
 
