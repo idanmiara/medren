@@ -9,7 +9,7 @@ from medren.backend_piexif import get_best_dt
 from medren.consts import image_ext_with_exif
 from medren.datetime_from_filename import extract_datetime_from_filename
 from medren.exif_process import ExifClass, ExifStat, parse_datetime_dash, extract_datetime_with_optional_goff, parse_offset, \
-    fix_make_model, parse_datetime_colon
+    clean_make_model, parse_datetime_colon
 
 
 def extract_piexif(path: Path | str, logger: logging.Logger) -> ExifClass | None:
@@ -37,7 +37,7 @@ def extract_exiftool(path: Path | str, logger: logging.Logger) -> ExifClass | No
                 is_utc = goff is None and exif_date is None
                 lat = metadata.get('Composite:GPSLatitude')
                 lon = metadata.get('Composite:GPSLongitude')
-                make, model = fix_make_model(metadata.get('MakerNotes:Make'), metadata.get('MakerNotes:Model'))
+                make, model = clean_make_model(metadata.get('MakerNotes:Make'), metadata.get('MakerNotes:Model'))
                 if not lat or not lon:
                     latlon = metadata.get('Composite:GPSPosition', metadata.get('QuickTime:GPSCoordinates'))
                     if latlon:
@@ -110,7 +110,7 @@ def extract_exifread(path: Path | str, logger: logging.Logger) -> ExifClass | No
 
         make = get_tag_str(tags.get('Image Make'))
         model = get_tag_str(tags.get('Image Model'))
-        make, model = fix_make_model(make, model)
+        make, model = clean_make_model(make, model)
 
         w = get_tag_int(tags.get('EXIF ExifImageWidth'))
         h = get_tag_int(tags.get('EXIF ExifImageLength'))
@@ -196,7 +196,7 @@ def extract_hachoir(path: Path | str, logger: logging.Logger) -> ExifClass | Non
             if not t_org and not t_dig:
                 return None
             dt = parse_datetime_colon(t_org or t_dig)
-            make, model = fix_make_model(make, model)
+            make, model = clean_make_model(make, model)
             t_fn = extract_datetime_from_filename(path.name)
             return ExifClass(
                 ext=path.suffix,
@@ -293,7 +293,7 @@ def extract_ffmpeg(path: Path | str, logger: logging.Logger) -> ExifClass | None
         is_utc = True
         lat, lon = parse_location_string(tags.get('location'))
         goff = parse_goff_string(tags.get('com.samsung.android.utc_offset'))
-        make, model = fix_make_model(tags.get('maker'), tags.get('model'))
+        make, model = clean_make_model(tags.get('maker'), tags.get('model'))
         return ExifClass(backend='ffmpeg', ext=path.suffix, make=make, model=model, dt=dt, goff=goff, lat=lat, lon=lon, is_utc=is_utc)
     return None
 

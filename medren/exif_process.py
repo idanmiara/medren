@@ -127,7 +127,7 @@ def make_by_model(model: str | None) -> str | None:
     return model_prefix_to_make.get(model_prefix)
 
 
-def clean_make_model(name: str | None) -> str | None:
+def clean_make_or_model(name: str | None) -> str | None:
     # makes = ['Canon', 'HP', 'NIKON CORPORATION', 'OLYMPUS OPTICAL CO.,LTD', 'Google', 'FUJIFILM', 'SONY',
     # 'Panasonic', 'SAMSUNG', 'samsung', 'MOTOROLA', 'Hewlett-Packard', 'EASTMAN KODAK COMPANY', 'Apple',
     # 'NIKON', 'SANYO Electric Co.,Ltd',
@@ -139,13 +139,16 @@ def clean_make_model(name: str | None) -> str | None:
         return None
     name = fix_make_model_base(name)
     spam_words = (
-        'CORPORATION', 'CO.,LTD', 'CO,', 'LTD', 'EASTMAN', 'COMPANY', 'Electric', 'IMAGING', 'CORP', 'Electronics',
+        'CORP', 'CORPORATION', 'CO.,LTD', 'LTD', 'EASTMAN', 'COMPANY', 'Electric', 'IMAGING', 'Electronics',
         'COMPUTER', 'PHOTO', 'FILM', 'OPTICAL')
+    def normalize_spam(s: str) -> str:
+        return s.upper().replace('.', '').replace(',', '').replace('-', '').replace('_', '')
+    spam_words = [normalize_spam(s) for s in spam_words]
 
     parts = name.split(sep=' ')
     maker_parts = []
     for part in parts:
-        if part.upper() not in spam_words:
+        if normalize_spam(part) not in spam_words:
             nice_part = makers.get(part.lower(), part)
             maker_parts.append(nice_part)
     name = ' '.join(maker_parts)
@@ -157,9 +160,9 @@ def tag_friendly(s: str | None) -> str | None:
         return None
     return s.replace(' ', '-').replace('_', '-')
 
-def fix_make_model(make: str | None, model: str | None) -> tuple[str | None, str | None]:
-    make = clean_make_model(make)
-    model = clean_make_model(model)
+def clean_make_model(make: str | None, model: str | None) -> tuple[str | None, str | None]:
+    make = clean_make_or_model(make)
+    model = clean_make_or_model(model)
     if make and model:
         model_parts = model.replace('_',' ').replace('-', ' ').split(' ')
         make_parts = make.lower().replace('_',' ').replace('-', ' ').split(' ')

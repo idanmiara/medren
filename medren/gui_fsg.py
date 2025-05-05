@@ -187,6 +187,7 @@ def main():  # noqa: PLR0915, PLR0912
     class BackendsRightClickCommand(Enum):
         backend_move_to_top = 'Move backend to the top'
         backend_move_to_bottom = 'Move backend to the bottom'
+        backend_remove = 'Remove backend'
         backend_reset = 'Reset backends priorities'
     backends_right_click_items = [c.value for c in BackendsRightClickCommand]
     top_right_column2 = sg.Column([
@@ -201,6 +202,7 @@ def main():  # noqa: PLR0915, PLR0912
         new = 'Copy New'
         both = 'Copy Original -> New'
         csv = 'Copy CSV'
+        select_all = 'Select all items'
     table_right_click_items = [c.value for c in TableRightClickCommand]
     bottom_layout = [sg.Table(
         values=[],
@@ -369,6 +371,9 @@ def main():  # noqa: PLR0915, PLR0912
 
         elif event in table_right_click_items:
             if values['-TABLE-']:
+                if event == TableRightClickCommand.select_all.value:
+                    # window['-TABLE-']
+                    continue
                 if event == TableRightClickCommand.org.value:
                     text = '\n'.join(f"{table_data[i][0]}" for i in values['-TABLE-'])
                 elif event == TableRightClickCommand.new.value:
@@ -376,7 +381,7 @@ def main():  # noqa: PLR0915, PLR0912
                 elif event == TableRightClickCommand.both.value:
                     text = '\n'.join(f"{table_data[i][0]} -> {table_data[i][1]}" for i in values['-TABLE-'])
                 elif event == TableRightClickCommand.csv.value:
-                    text = '\n'.join(f"{','.join(table_data[i])}" for i in values['-TABLE-'])
+                    text = '\n'.join(f"{','.join([str(x) for x in table_data[i]])}" for i in values['-TABLE-'])
                 else:
                     text = 'Unknown operation'
                 pyperclip.copy(text)
@@ -387,11 +392,14 @@ def main():  # noqa: PLR0915, PLR0912
                 backends = list(available_backends)
             else:
                 move_to_top = event == BackendsRightClickCommand.backend_move_to_top.value
+                remove_backend = event == BackendsRightClickCommand.backend_remove.value
                 selected = values['backends']
                 backends = list(window['backends'].Values)
                 for item in selected:
                     backends.remove(item)
-                    if move_to_top:
+                    if remove_backend:
+                        pass
+                    elif move_to_top:
                         backends.insert(0, item)
                     else:
                         backends.append(item)

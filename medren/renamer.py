@@ -49,7 +49,10 @@ class Renamer:
     def __post_init__(self):
         """Initialize backends after instance creation."""
         self.prefix = self.prefix or ''
-        self.backends = self.backends or available_backends
+        if not self.backends:
+            self.backends = available_backends
+        else:
+            self.backends = [b for b in self.backends if b in available_backends]
         self.do_calc_hash = '{sha256}' in self.template
         self.do_calc_loc = '{address}' in self.template
         self.do_calc_pluscode = '{pluscode}' in self.template

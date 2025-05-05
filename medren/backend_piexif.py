@@ -8,7 +8,7 @@ from medren.exif_process import (
     ExifClass,
     ExifRaw,
     ExifStat,
-    fix_make_model,
+    clean_make_model,
     is_timestamp_valid,
     parse_datetime_colon,
     parse_gps,
@@ -99,7 +99,7 @@ def piexif_get(path: Path | str, logger: logging.Logger) -> tuple[ExifClass | No
         gps = exif_dict.get('GPS', {})
         make = exif_decode(_0th.get(piexif.ImageIFD.Make))
         model = exif_decode(_0th.get(piexif.ImageIFD.Model))
-        make, model = fix_make_model(make, model)
+        make, model = clean_make_model(make, model)
 
         # image size from exif, i.e. original
         w = exif.get(piexif.ExifIFD.PixelXDimension)
