@@ -4,11 +4,13 @@ from openlocationcode.openlocationcode import encode
 geolocator = Nominatim(user_agent="medren")
 
 # lat, lng = 52.509669, 13.376294
-lat, lng = 37.4223041570954, -122.08410042965134
+# lat, lng = 37.4223041570954, -122.08410042965134
+lat, lng = 32.0762711908166, 34.7710160352531
 
 def test_geocode():
     #location = geolocator.geocode("175 5th Avenue NYC")
-    location = geolocator.geocode("Zikhron Yaakov, Israel")
+    location = geolocator.geocode("Zikhron Yaakov, Israel", language="he")
+    assert location is not None
     print(location.address)
     # Flatiron Building, 175, 5th Avenue, Flatiron, New York, NYC, New York, ...
     print((location.latitude, location.longitude))
@@ -17,7 +19,7 @@ def test_geocode():
     # {'place_id': '9167009604', 'type': 'attraction', ...}
 
 def test_reverse():
-    location = geolocator.reverse(f"{lat}, {lng}") # lat, lon
+    location = geolocator.reverse(f"{lat}, {lng}", language='')
     print(location.address)
     #Potsdamer Platz, Mitte, Berlin, 10117, Deutschland, European Union
     print((location.latitude, location.longitude))
