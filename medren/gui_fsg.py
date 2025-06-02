@@ -219,7 +219,7 @@ def main():  # noqa: PLR0915, PLR0912
     table_right_click_items = [c.value for c in TableRightClickCommand]
     bottom_layout = [sg.Table(
         values=[],
-        headings=['Original Filename', 'New Filename', 'Datetime', 'goff', 'make', 'model', 'Backend'],
+        headings=['Original Filename', 'New Filename', 'Datetime', 't_offset', 'make', 'model', 'Backend'],
         auto_size_columns=False,
         col_widths=[40, 30, 8, 2, 5, 8, 5],
         justification='left',
@@ -365,7 +365,7 @@ def main():  # noqa: PLR0915, PLR0912
                     recursive=recursive,
                 )
                 preview = renamer.generate_renames(input_paths, resolve_names=True)
-                table_data = [[orig_fn, new_fn, ex.dt, ex.goff, ex.make, ex.model, ex.backend]
+                table_data = [[orig_fn, new_fn, ex.dt, ex.t_offset, ex.make, ex.model, ex.backend]
                               for orig_fn, (new_fn, ex) in preview.items()]
                 if not values['org_full_path']:
                     for item in table_data:

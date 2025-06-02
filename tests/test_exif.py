@@ -61,5 +61,5 @@ def test_filename_datetime_consistency(filename: list[Path], backends=available_
             filename_time_is_utc = ex.make and "google" in ex.make.lower()
             # Google Pixel 6 datetime in filename is UTC, as appose to Samsung
             if filename_time_is_utc:
-                dt = dt + timedelta(hours=ex.goff)
-            assert dt == ex.dt, (ex.backend, ex.dt, ex.t_fn, ex.goff)
+                dt = dt + timedelta(hours=ex.t_offset)
+            assert dt == ex.dt, (ex.backend, ex.dt, ex.t_fn, ex.t_offset)

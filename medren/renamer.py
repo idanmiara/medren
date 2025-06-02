@@ -158,7 +158,7 @@ class Renamer:
             ex = self.fetch_meta(path)
             if ex is not None:
                 dt_and_paths.append((Path(path), ex))
-                logger.debug(f"{ex.backend}: Fetched datetime {ex.dt} ({ex.goff=}) for {path}")
+                logger.debug(f"{ex.backend}: Fetched datetime {ex.dt} ({ex.t_offset=}) for {path}")
         dt_and_paths.sort(key=lambda x: x[1].dt)
 
         s = self.separator

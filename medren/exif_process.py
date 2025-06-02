@@ -18,7 +18,7 @@ class ExifStat(IntEnum):
 
 
 ExifRaw = dict
-Goff = float | int | None
+TOffset = float | int | None
 
 logger = logging.getLogger()
 
@@ -42,10 +42,10 @@ class ExifClass:
     t_img: str | None = None
     t_fn: str | None = None
 
-    goff: Goff = None
-    goff_dig: Goff = None
-    goff_img: Goff = None
-    goff_ll: Goff = None
+    t_offset: TOffset = None
+    t_offset_dig: TOffset = None
+    t_offset_img: TOffset = None
+    t_offset_ll: TOffset = None
 
     make: str | None = None
     model: str | None = None
@@ -73,26 +73,26 @@ class ExifClass:
         )
 
     def __post_init__(self):
-        self.goff_form_loc(logger)
+        self.t_offset_form_loc(logger)
 
-    def goff_form_loc(self, logger: logging.Logger):
+    def t_offset_form_loc(self, logger: logging.Logger):
         try:
-            if self.is_utc and self.goff is not None:
+            if self.is_utc and self.t_offset is not None:
                 self.is_utc = False
-                self.dt = self.dt + datetime.timedelta(hours=self.goff)
+                self.dt = self.dt + datetime.timedelta(hours=self.t_offset)
             if self.lat and self.lon and self.dt:
-                self.goff_ll = get_timezone_offset(lat=self.lat, lon=self.lon, date=self.dt)
-                if self.goff_ll:
+                self.t_offset_ll = get_timezone_offset(lat=self.lat, lon=self.lon, date=self.dt)
+                if self.t_offset_ll:
                     if self.is_utc:
                         self.is_utc = False
-                        self.dt = self.dt + datetime.timedelta(hours=self.goff_ll)
-                    if not self.goff:
-                        self.goff = self.goff_ll
+                        self.dt = self.dt + datetime.timedelta(hours=self.t_offset_ll)
+                    if not self.t_offset:
+                        self.t_offset = self.t_offset_ll
                         # pass
-                    elif self.goff == self.goff_ll:
+                    elif self.t_offset == self.t_offset_ll:
                         pass
                     else:
-                        logger.warning(f"time offset mismatch {self.goff} != {self.goff_ll} {self}")
+                        logger.warning(f"time offset mismatch {self.t_offset} != {self.t_offset_ll} {self}")
         except Exception as e:
             logger.warning(f"Failed to fetch time offset {self} ({e})")
 
@@ -227,30 +227,30 @@ def parse_float(p, ref, digits: int) -> float | None:
     return p
 
 
-def parse_offset(goff: str | None, logger: logging.Logger) -> float | None:
-    if not goff:
+def parse_offset(t_offset: str | None, logger: logging.Logger) -> float | None:
+    if not t_offset:
         return None
     try:
-        goff_len = 6
-        if len(goff) >= goff_len:
-            sign = 1 if goff[-6] == '+' else -1
-            hours = int(goff[-5:-3])
-            minutes = int(goff[-2:])
+        t_offset_len = 6
+        if len(t_offset) >= t_offset_len:
+            sign = 1 if t_offset[-6] == '+' else -1
+            hours = int(t_offset[-5:-3])
+            minutes = int(t_offset[-2:])
             return sign * (hours + minutes/60)
     except Exception as e:
-        logger.debug(f"Could not parse offset {goff}: {e}")
+        logger.debug(f"Could not parse offset {t_offset}: {e}")
     return None
 
-def extract_datetime_with_optional_goff(date_str: str, logger: logging.Logger) -> tuple[datetime.datetime | None, Goff]:
-    dt, goff = None, None
+def extract_datetime_with_optional_t_offset(date_str: str, logger: logging.Logger) -> tuple[datetime.datetime | None, TOffset]:
+    dt, t_offset = None, None
     dt_len = 19
     if len(date_str) >= dt_len:
         if len(date_str) > dt_len:
-            goff = date_str[dt_len:]
-            goff = parse_offset(goff, logger)
+            t_offset = date_str[dt_len:]
+            t_offset = parse_offset(t_offset, logger)
             date_str = date_str[:dt_len]
         dt = parse_datetime_colon(date_str)
-    return dt, goff
+    return dt, t_offset
 
 def parse_datetime_colon(date_str: str) -> datetime.datetime:
     return datetime.datetime.strptime(date_str, "%Y:%m:%d %H:%M:%S")

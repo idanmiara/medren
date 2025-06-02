@@ -8,7 +8,7 @@ from typing import Callable
 from medren.backend_piexif import get_best_dt
 from medren.consts import image_ext_with_exif
 from medren.datetime_from_filename import extract_datetime_from_filename
-from medren.exif_process import ExifClass, ExifStat, parse_datetime_dash, extract_datetime_with_optional_goff, parse_offset, \
+from medren.exif_process import ExifClass, ExifStat, parse_datetime_dash, extract_datetime_with_optional_t_offset, parse_offset, \
     clean_make_model, parse_datetime_colon
 
 
@@ -33,8 +33,8 @@ def extract_exiftool(path: Path | str, logger: logging.Logger) -> ExifClass | No
                         metadata.get('MakerNotes:TimeStamp') or \
                         metadata.get('QuickTime:CreateDate')
             if date_str:
-                dt, goff = extract_datetime_with_optional_goff(date_str, logger)
-                is_utc = goff is None and exif_date is None
+                dt, t_offset = extract_datetime_with_optional_t_offset(date_str, logger)
+                is_utc = t_offset is None and exif_date is None
                 lat = metadata.get('Composite:GPSLatitude')
                 lon = metadata.get('Composite:GPSLongitude')
                 make, model = clean_make_model(metadata.get('MakerNotes:Make'), metadata.get('MakerNotes:Model'))
@@ -47,7 +47,7 @@ def extract_exiftool(path: Path | str, logger: logging.Logger) -> ExifClass | No
                             lon = float(lon)
                         except Exception:
                             lat, lon = None, None
-                return ExifClass(backend='exiftool', ext=path.suffix, dt=dt, goff=goff, lat=lat, make=make, model=model, lon=lon, is_utc=is_utc)
+                return ExifClass(backend='exiftool', ext=path.suffix, dt=dt, t_offset=t_offset, lat=lat, make=make, model=model, lon=lon, is_utc=is_utc)
     return None
 
 
@@ -104,9 +104,9 @@ def extract_exifread(path: Path | str, logger: logging.Logger) -> ExifClass | No
         t_fn = extract_datetime_from_filename(path.name)
         dt = parse_datetime_colon(t_org)
 
-        goff_org = get_offset_tag(tags.get('EXIF OffsetTimeOriginal'))
-        goff_dig = get_offset_tag(tags.get('EXIF OffsetTimeDigitized'))
-        goff_img = get_offset_tag(tags.get('EXIF OffsetTime'))
+        t_offset_org = get_offset_tag(tags.get('EXIF OffsetTimeOriginal'))
+        t_offset_dig = get_offset_tag(tags.get('EXIF OffsetTimeDigitized'))
+        t_offset_img = get_offset_tag(tags.get('EXIF OffsetTime'))
 
         make = get_tag_str(tags.get('Image Make'))
         model = get_tag_str(tags.get('Image Model'))
@@ -133,9 +133,9 @@ def extract_exifread(path: Path | str, logger: logging.Logger) -> ExifClass | No
             t_img=t_img,
             t_fn=t_fn,
 
-            goff=goff_org,
-            goff_dig=goff_dig,
-            goff_img=goff_img,
+            t_offset=t_offset_org,
+            t_offset_dig=t_offset_dig,
+            t_offset_img=t_offset_img,
 
             make=make,
             model=model,
@@ -151,7 +151,7 @@ def extract_exifread(path: Path | str, logger: logging.Logger) -> ExifClass | No
 
             backend='exifread',
         )
-        # ex.goff_form_loc(logger=logger)
+        # ex.t_offset_form_loc(logger=logger)
         return ex
 
 
@@ -160,7 +160,7 @@ def extract_hachoir(path: Path | str, logger: logging.Logger) -> ExifClass | Non
     from hachoir.parser import createParser
     path = Path(path)
     parser = createParser(str(path))
-    t_org = t_dig = t_img = dt = goff_org = goff_dig = goff_img = make = model = w = h = iw = ih = lat = lon = alt = None
+    t_org = t_dig = t_img = dt = t_offset_org = t_offset_dig = t_offset_img = make = model = w = h = iw = ih = lat = lon = alt = None
     try:
         metadata = extractMetadata(parser) if parser else None
         if metadata:
@@ -208,9 +208,9 @@ def extract_hachoir(path: Path | str, logger: logging.Logger) -> ExifClass | Non
                 t_img=t_img,
                 t_fn=t_fn,
 
-                goff=goff_org,
-                goff_dig=goff_dig,
-                goff_img=goff_img,
+                t_offset=t_offset_org,
+                t_offset_dig=t_offset_dig,
+                t_offset_img=t_offset_img,
 
                 make=make,
                 model=model,
@@ -263,7 +263,7 @@ def parse_location_string(s: str) -> tuple[float | None, float | None]:
     return None, None
 
 
-def parse_goff_string(s: str) -> float | None:
+def parse_t_offset_string(s: str) -> float | None:
     # +0300 means +03:00
     if not s:
         return None
@@ -292,9 +292,9 @@ def extract_ffmpeg(path: Path | str, logger: logging.Logger) -> ExifClass | None
         dt = parse_datetime_dash(date_str, logger)
         is_utc = True
         lat, lon = parse_location_string(tags.get('location'))
-        goff = parse_goff_string(tags.get('com.samsung.android.utc_offset'))
+        t_offset = parse_t_offset_string(tags.get('com.samsung.android.utc_offset'))
         make, model = clean_make_model(tags.get('maker'), tags.get('model'))
-        return ExifClass(backend='ffmpeg', ext=path.suffix, make=make, model=model, dt=dt, goff=goff, lat=lat, lon=lon, is_utc=is_utc)
+        return ExifClass(backend='ffmpeg', ext=path.suffix, make=make, model=model, dt=dt, t_offset=t_offset, lat=lat, lon=lon, is_utc=is_utc)
     return None
 
 

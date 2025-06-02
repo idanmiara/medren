@@ -92,9 +92,9 @@ def piexif_get(path: Path | str, logger: logging.Logger) -> tuple[ExifClass | No
         t_fn = extract_datetime_from_filename(path.name)
         dt = parse_datetime_colon(dt)
 
-        goff_org = parse_offset(exif_decode(exif.get(piexif.ExifIFD.OffsetTimeOriginal)), logger)
-        goff_dig = parse_offset(exif_decode(exif.get(piexif.ExifIFD.OffsetTimeDigitized)), logger)
-        goff_img = parse_offset(exif_decode(exif.get(piexif.ExifIFD.OffsetTime)), logger)
+        t_offset_org = parse_offset(exif_decode(exif.get(piexif.ExifIFD.OffsetTimeOriginal)), logger)
+        t_offset_dig = parse_offset(exif_decode(exif.get(piexif.ExifIFD.OffsetTimeDigitized)), logger)
+        t_offset_img = parse_offset(exif_decode(exif.get(piexif.ExifIFD.OffsetTime)), logger)
 
         gps = exif_dict.get('GPS', {})
         make = exif_decode(_0th.get(piexif.ImageIFD.Make))
@@ -125,9 +125,9 @@ def piexif_get(path: Path | str, logger: logging.Logger) -> tuple[ExifClass | No
             t_img=t_img,
             t_fn=t_fn,
 
-            goff=goff_org,
-            goff_dig=goff_dig,
-            goff_img=goff_img,
+            t_offset=t_offset_org,
+            t_offset_dig=t_offset_dig,
+            t_offset_img=t_offset_img,
 
             make=make,
             model=model,
@@ -144,7 +144,7 @@ def piexif_get(path: Path | str, logger: logging.Logger) -> tuple[ExifClass | No
             backend='piexif',
             # all=exif_dict,
         )
-        # ex.goff_form_loc(logger=logger)
+        # ex.t_offset_form_loc(logger=logger)
         return ex, ExifStat.ValidExif
     except Exception as ex:
         logger.warning(f"{piexif}: Could not get exif data from {exif_dict}: {ex}")
