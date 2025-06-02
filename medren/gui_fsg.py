@@ -1,9 +1,13 @@
 import argparse
+import csv
 import datetime
 import json
 import logging
 import os
+import platform
+import subprocess
 from copy import copy
+from dataclasses import asdict
 from enum import Enum
 from pathlib import Path
 from typing import Any
@@ -13,11 +17,6 @@ import pyperclip
 
 from medren import __version__
 from medren.backends import available_backends
-from medren.renamer import (
-    MEDREN_DIR,
-    PROFILES_DIR,
-    Renamer,
-)
 from medren.consts import (
     DEFAULT_DATETIME_FORMAT,
     DEFAULT_PROFILE_NAME,
@@ -25,6 +24,11 @@ from medren.consts import (
     DEFAULT_TEMPLATE, file_types,
 )
 from medren.profiles import Modes, profile_keys, profiles
+from medren.renamer import (
+    MEDREN_DIR,
+    PROFILES_DIR,
+    Renamer,
+)
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -32,7 +36,8 @@ logger = logging.getLogger(__name__)
 
 saved_keys = [
     'inputs', 'profile', 'pattern', 'backends',
-    ]
+]
+
 
 # Settings file path
 def load_settings(filename, is_profile=False) -> dict:
@@ -47,6 +52,7 @@ def load_settings(filename, is_profile=False) -> dict:
         pass
     return {}
 
+
 def save_settings(values, filename, is_profile=False) -> None:
     filter_list = profile_keys if is_profile else saved_keys
     values = {key: values[key] for key in filter_list}
@@ -55,6 +61,7 @@ def save_settings(values, filename, is_profile=False) -> None:
             json.dump(values, f)
     except Exception:
         pass
+
 
 def load_profile(profile_name: str) -> dict:
     profile_name = (profile_name or DEFAULT_PROFILE_NAME)
@@ -67,20 +74,22 @@ def load_profile(profile_name: str) -> dict:
             return profile.get_vars()
     return {}
 
+
 def save_profile(values, profile_name: str) -> None:
     profile_filename = get_profile_filename(profile_name)
     save_settings(values=values, filename=profile_filename, is_profile=True)
+
 
 def delete_profile(profile_name: str):
     profile_filename = get_profile_filename(profile_name)
     if profile_filename.is_file():
         os.remove(profile_filename)
 
+
 def get_profile_filename(profile_name: str):
     profile_name = (profile_name or DEFAULT_PROFILE_NAME) + '.json'
     profile_filename = PROFILES_DIR / profile_name
     return profile_filename
-
 
 
 def parse_args():
@@ -135,11 +144,11 @@ def main():  # noqa: PLR0915, PLR0912
     # Top-left layout (multi-line form section)
     top_left_layout = [
         [sg.Text('Path:'),
-        sg.Input(key='-PATH-', enable_events=True, expand_x=True),
-        sg.FileBrowse(button_text='Browse', key='-BROWSE-', file_types=(('All Files', '*.*'),)),
-        sg.Combo(list(file_types.keys()), default_value="*", key='pattern', readonly=False, size=(10, 1)),
-        sg.Text('Mode:'), sg.Combo([m.name for m in Modes], default_value=Modes.dir.name, key='mode', readonly=True),
-        ],
+         sg.Input(key='-PATH-', enable_events=True, expand_x=True),
+         sg.FileBrowse(button_text='Browse', key='-BROWSE-', file_types=(('All Files', '*.*'),)),
+         sg.Combo(list(file_types.keys()), default_value="*", key='pattern', readonly=False, size=(10, 1)),
+         sg.Text('Mode:'), sg.Combo([m.name for m in Modes], default_value=Modes.dir.name, key='mode', readonly=True),
+         ],
 
         [sg.Text('Profile:'),
          sg.Combo(all_profile_names, default_value=DEFAULT_PROFILE_NAME, key='profile', size=(15, 1)),
@@ -149,12 +158,12 @@ def main():  # noqa: PLR0915, PLR0912
          ],
 
         [
-        sg.Button('Add'),
-        sg.Button('Preview'),
-        sg.Button('Rename'),
-        sg.Button('Clear'),
-        sg.Button('Load Settings'),
-        sg.Button('Save Settings'),
+            sg.Button('Add'),
+            sg.Button('Preview'),
+            sg.Button('Rename'),
+            sg.Button('Clear'),
+            sg.Button('Load Settings'),
+            sg.Button('Save Settings'),
         ],
 
         [sg.Text('Template:'), sg.Input(default_text=DEFAULT_TEMPLATE, expand_x=True, key='template', size=(30, 1))],
@@ -163,13 +172,13 @@ def main():  # noqa: PLR0915, PLR0912
          sg.Input(default_text=DEFAULT_DATETIME_FORMAT, expand_x=True, key='datetime_format', size=(20, 1))],
 
         [sg.Text('Prefix:'), sg.Input(expand_x=True, key='prefix', size=(15, 1)),
-        sg.Text('Suffix:'), sg.Input(expand_x=True, key='suffix', size=(15, 1))],
+         sg.Text('Suffix:'), sg.Input(expand_x=True, key='suffix', size=(15, 1))],
 
         [*separators_layout,
-        sg.Checkbox('Normalize', default=True, key='normalize', expand_x=True),
-        sg.Checkbox('show full paths in table', default= True, key='org_full_path', expand_x=True),
-        sg.Text('Items found:'), sg.Text('', key='-ITEMS-FOUND-', size=(10, 1)),
-        ]
+         sg.Checkbox('Normalize', default=True, key='normalize', expand_x=True),
+         sg.Checkbox('show full paths in table', default=True, key='org_full_path', expand_x=True),
+         sg.Text('Items found:'), sg.Text('', key='-ITEMS-FOUND-', size=(10, 1)),
+         ]
     ]
 
     # Wrap top-left layout in a Column
@@ -178,6 +187,7 @@ def main():  # noqa: PLR0915, PLR0912
     # Top-right with listbox
     class InputsRightClickCommand(Enum):
         clear_inputs = 'Clear Inputs'
+
     inputs_right_click_items = [c.value for c in InputsRightClickCommand]
     top_right_column = sg.Column([
         [sg.Text('Added Input Paths:'), sg.Button('About MedRen v' + __version__, key='-VERSION-')],
@@ -189,20 +199,23 @@ def main():  # noqa: PLR0915, PLR0912
         backend_move_to_bottom = 'Move backend to the bottom'
         backend_remove = 'Remove backend'
         backend_reset = 'Reset backends priorities'
+
     backends_right_click_items = [c.value for c in BackendsRightClickCommand]
     top_right_column2 = sg.Column([
         [sg.Text('Backends:')],
         [sg.Listbox(values=available_backends, size=(10, 8), key='backends', expand_x=True, expand_y=True)]
     ], vertical_alignment='top', right_click_menu=['', backends_right_click_items])
 
-
     # Bottom layout: table
     class TableRightClickCommand(Enum):
-        org = 'Copy Original'
-        new = 'Copy New'
-        both = 'Copy Original -> New'
-        csv = 'Copy CSV'
+        open_file = "Open selected File(s)"
+        copy_org_filename = 'Copy Original'
+        copy_new_filename = 'Copy New'
+        copy_org_and_new_filenames = 'Copy Original -> New'
+        copy_csv = 'Copy CSV'
+        save_exif_csv = 'Save Exif data to csv file'
         select_all = 'Select all items'
+
     table_right_click_items = [c.value for c in TableRightClickCommand]
     bottom_layout = [sg.Table(
         values=[],
@@ -223,9 +236,9 @@ def main():  # noqa: PLR0915, PLR0912
     ]
 
     window = sg.Window('MedRen - The Media Renamer', layout,
-                    size=loaded_values.get('window_size', (900, 500)),
-                    location=loaded_values.get('window_position'),
-                    resizable=True)
+                       size=loaded_values.get('window_size', (900, 500)),
+                       location=loaded_values.get('window_position'),
+                       resizable=True)
 
     window.read(timeout=0)
     for key in loaded_values:
@@ -252,7 +265,7 @@ def main():  # noqa: PLR0915, PLR0912
                     values = copy(values)
                     values["backends"] = list(window['backends'].Values)
                     save_settings(values=values, filename=settings_filename)
-            except Exception as e   :
+            except Exception as e:
                 logger.error(f"Error saving settings: {e}")
 
         elif event == 'Load Settings':
@@ -272,7 +285,7 @@ def main():  # noqa: PLR0915, PLR0912
                     saved_profile_names, built_in_profile_names, all_profile_names = get_profile_names()
                     window['profile'].update(value=profile_name, values=all_profile_names)
 
-            except Exception as e   :
+            except Exception as e:
                 logger.error(f"Error saving profile {profile_name}: {e}")
 
         elif event == 'Load Profile':
@@ -352,8 +365,8 @@ def main():  # noqa: PLR0915, PLR0912
                     recursive=recursive,
                 )
                 preview = renamer.generate_renames(input_paths, resolve_names=True)
-                table_data = [[orig, path, ex.dt, ex.goff, ex.make, ex.model, ex.backend]
-                              for orig, (path, ex) in preview.items()]
+                table_data = [[orig_fn, new_fn, ex.dt, ex.goff, ex.make, ex.model, ex.backend]
+                              for orig_fn, (new_fn, ex) in preview.items()]
                 if not values['org_full_path']:
                     for item in table_data:
                         item[0] = Path(item[0]).name
@@ -374,13 +387,39 @@ def main():  # noqa: PLR0915, PLR0912
                 if event == TableRightClickCommand.select_all.value:
                     # window['-TABLE-']
                     continue
-                if event == TableRightClickCommand.org.value:
+                if event == TableRightClickCommand.open_file.value:
+                    all_filenames = list(preview.keys())
+                    filenames = [all_filenames[i] for i in values['-TABLE-']]
+                    count = len(filenames)
+                    if count <= 5 or sg.popup_yes_no(f'Would you like to open the {count} selected files?', title=f'Open {count} files'):
+                        for filename in filenames:
+                            open_with_default_app(filename)
+                    continue
+                elif event == TableRightClickCommand.save_exif_csv.value:
+                    # Open a "Save As" dialog for CSV file
+                    output_filename = sg.popup_get_file(
+                        'Save CSV As',
+                        save_as=True,
+                        file_types=(("CSV Files", "*.csv"),),
+                        default_extension=".csv",
+                        no_window=True
+                    )
+
+                    exifs = [ex for (_new_fn, ex) in preview.values()]
+                    # Write to CSV
+                    with open(output_filename, 'w', newline='') as csvfile:
+                        writer = csv.DictWriter(csvfile, fieldnames=asdict(exifs[0]).keys())
+                        writer.writeheader()
+                        for ex in exifs:
+                            writer.writerow(asdict(ex))
+                    continue
+                elif event == TableRightClickCommand.copy_org_filename.value:
                     text = '\n'.join(f"{table_data[i][0]}" for i in values['-TABLE-'])
-                elif event == TableRightClickCommand.new.value:
+                elif event == TableRightClickCommand.copy_new_filename.value:
                     text = '\n'.join(f"{table_data[i][1]}" for i in values['-TABLE-'])
-                elif event == TableRightClickCommand.both.value:
+                elif event == TableRightClickCommand.copy_org_and_new_filenames.value:
                     text = '\n'.join(f"{table_data[i][0]} -> {table_data[i][1]}" for i in values['-TABLE-'])
-                elif event == TableRightClickCommand.csv.value:
+                elif event == TableRightClickCommand.copy_csv.value:
                     text = '\n'.join(f"{','.join([str(x) for x in table_data[i]])}" for i in values['-TABLE-'])
                 else:
                     text = 'Unknown operation'
@@ -405,8 +444,17 @@ def main():  # noqa: PLR0915, PLR0912
                         backends.append(item)
             window['backends'].update(values=backends)
 
-
     window.close()
+
+
+def open_with_default_app(filepath):
+    if platform.system() == 'Windows':
+        os.startfile(filepath)
+    elif platform.system() == 'Darwin':  # macOS
+        subprocess.run(['open', filepath])
+    else:  # Linux and others
+        subprocess.run(['xdg-open', filepath])
+
 
 if __name__ == '__main__':
     main()
