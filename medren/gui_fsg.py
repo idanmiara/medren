@@ -227,7 +227,8 @@ def main():  # noqa: PLR0915, PLR0912
         key='-TABLE-',
         expand_x=True,
         expand_y=True,
-        right_click_menu=['', table_right_click_items]
+        right_click_menu=['', table_right_click_items],
+        bind_return_key=True,
     )]
 
     # Final layout
@@ -239,7 +240,8 @@ def main():  # noqa: PLR0915, PLR0912
     window = sg.Window('MedRen - The Media Renamer', layout,
                        size=loaded_values.get('window_size', (900, 500)),
                        location=loaded_values.get('window_position'),
-                       resizable=True)
+                       resizable=True, finalize=True)
+    window['-TABLE-'].bind('<Double-Button-1>', '::DoubleClick')
 
     window.read(timeout=0)
     for key in loaded_values:
@@ -257,6 +259,7 @@ def main():  # noqa: PLR0915, PLR0912
         profile_name = values.get('profile', DEFAULT_PROFILE_NAME)
         # input_paths = values['inputs']
         input_paths = window['inputs'].Values
+
         if event == '-VERSION-':
             sg.popup(f'MedRen - The Media Renamer v{__version__}. By Idan Miara',
                      title='לאבא באהבה 😍')
@@ -383,12 +386,19 @@ def main():  # noqa: PLR0915, PLR0912
             else:
                 sg.popup('Nothing to rename. Please preview first.')
 
+        elif event == '-TABLE-::DoubleClick':
+            all_filenames = list(preview.keys())
+            selected = values['-TABLE-']
+            if selected:
+                filename = all_filenames[selected[0]]
+                open_with_default_app(filename)
+                continue
         elif event in table_right_click_items:
             if event == TableRightClickCommand.select_all.value:
                 all_indices = list(range(len(preview)))
                 window['-TABLE-'].update(select_rows=all_indices)
                 continue
-            if event == TableRightClickCommand.inverse_selection.value:
+            elif event == TableRightClickCommand.inverse_selection.value:
                 current_selection = values['-TABLE-']
                 all_indices = set(range(len(preview)))
                 new_selection = sorted(all_indices - set(current_selection))
