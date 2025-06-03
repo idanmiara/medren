@@ -6,6 +6,7 @@ import logging
 import os
 import platform
 import subprocess
+import webbrowser
 from copy import copy
 from dataclasses import asdict
 from enum import Enum
@@ -209,6 +210,7 @@ def main():  # noqa: PLR0915, PLR0912
     # Bottom layout: table
     class TableRightClickCommand(Enum):
         open_file = "Open selected File(s)"
+        open_map = "Open OpenStreetMap of the selected files' geo locations"
         copy_org_filename = 'Copy Original'
         copy_new_filename = 'Copy New'
         copy_org_and_new_filenames = 'Copy Original -> New'
@@ -391,7 +393,18 @@ def main():  # noqa: PLR0915, PLR0912
         elif event == InputsRightClickCommand.clear_inputs.value:
             window['inputs'].update([])
 
+        elif event == TableRightClickCommand.select_all.value:
+            all_indices = list(range(len(data)))
+            window['-TABLE-'].update(select_rows=all_indices)
+
+        elif event == TableRightClickCommand.inverse_selection.value:
+            all_indices = set(range(len(data)))
+            new_selection = sorted(all_indices - set(selected))
+            window['-TABLE-'].update(select_rows=new_selection)
+
         elif event == TableRightClickCommand.save_exif_csv.value:
+            if not selected:
+                continue
             # Open a "Save As" dialog for CSV file
             output_filename = sg.popup_get_file(
                 'Save CSV As',
@@ -404,40 +417,53 @@ def main():  # noqa: PLR0915, PLR0912
             _, exif0 = next(iter(data.values()))
             fields = ["filename"] + list(asdict(exif0).keys())
            # Write to CSV
+            selected_data = {k: v for idx, (k, v) in enumerate(data.items()) if idx in selected}
             with open(output_filename, 'w', newline='') as csvfile:
                 writer = csv.DictWriter(csvfile, fieldnames=fields)
                 writer.writeheader()
-                for filename, (_, ex) in data.items():
+                for filename, (_, ex) in selected_data.items():
                     d = asdict(ex)
                     d['filename'] = filename
                     writer.writerow(d)
 
-        elif event == TableRightClickCommand.select_all.value:
-            all_indices = list(range(len(data)))
-            window['-TABLE-'].update(select_rows=all_indices)
-
-        elif event == TableRightClickCommand.inverse_selection.value:
-            all_indices = set(range(len(data)))
-            new_selection = sorted(all_indices - set(selected))
-            window['-TABLE-'].update(select_rows=new_selection)
-
-        if event == '-TABLE-::DoubleClick':
+        elif event == '-TABLE-::DoubleClick':
             if not selected:
                 continue
             all_filenames = list(data.keys())
             filename = all_filenames[selected[0]]
             open_with_default_app(filename)
 
-        elif event in table_right_click_items:
+        elif event == TableRightClickCommand.open_file.value:
             if not selected:
                 continue
-            if event == TableRightClickCommand.open_file.value:
-                all_filenames = list(data.keys())
-                filenames = [all_filenames[i] for i in selected]
-                count = len(filenames)
-                if count <= 5 or sg.popup_yes_no(f'Would you like to open the {count} selected files?', title=f'Open {count} files'):
-                    for filename in filenames:
-                        open_with_default_app(filename)
+            all_filenames = list(data.keys())
+            selected_filenames = [all_filenames[i] for i in selected]
+            count = len(selected_filenames)
+            if count <= 5 or sg.popup_yes_no(f'Would you like to open the {count} selected files?', title=f'Open {count} files'):
+                for filename in selected_filenames:
+                    open_with_default_app(filename)
+
+        elif event == TableRightClickCommand.open_map.value:
+            if not selected:
+                continue
+            selected_data = {k: v for idx, (k, v) in enumerate(data.items()) if idx in selected}
+            count = len(selected_data)
+            zoom = 18
+            found = 0
+            if count <= 5 or sg.popup_yes_no(f'Would you like to open the {count} selected files?', title=f'Open {count} files'):
+                for filename, (_, ex) in selected_data.items():
+                    lat, lon = ex.lat, ex.lon
+                    if lat is None or lon is None:
+                        continue
+                    found += 1
+                    # url = f"https://www.openstreetmap.org/#map=18/{lat}/{lon}"
+                    url = f"https://www.openstreetmap.org/?mlat={lat}&mlon={lon}&zoom={zoom}"
+                    webbrowser.open(url)
+                if not found:
+                    sg.popup('Selected files have geo location info')
+
+        elif event in table_right_click_items:
+            if not selected:
                 continue
             elif event == TableRightClickCommand.copy_org_filename.value:
                 text = '\n'.join(f"{table_data[i][0]}" for i in selected)
