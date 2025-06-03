@@ -215,6 +215,7 @@ def main():  # noqa: PLR0915, PLR0912
         copy_csv = 'Copy CSV'
         save_exif_csv = 'Save Exif data to csv file'
         select_all = 'Select all items'
+        inverse_selection = 'Inverse selection'
 
     table_right_click_items = [c.value for c in TableRightClickCommand]
     bottom_layout = [sg.Table(
@@ -383,10 +384,17 @@ def main():  # noqa: PLR0915, PLR0912
                 sg.popup('Nothing to rename. Please preview first.')
 
         elif event in table_right_click_items:
+            if event == TableRightClickCommand.select_all.value:
+                all_indices = list(range(len(preview)))
+                window['-TABLE-'].update(select_rows=all_indices)
+                continue
+            if event == TableRightClickCommand.inverse_selection.value:
+                current_selection = values['-TABLE-']
+                all_indices = set(range(len(preview)))
+                new_selection = sorted(all_indices - set(current_selection))
+                window['-TABLE-'].update(select_rows=new_selection)
+                continue
             if values['-TABLE-']:
-                if event == TableRightClickCommand.select_all.value:
-                    # window['-TABLE-']
-                    continue
                 if event == TableRightClickCommand.open_file.value:
                     all_filenames = list(preview.keys())
                     filenames = [all_filenames[i] for i in values['-TABLE-']]
@@ -405,13 +413,16 @@ def main():  # noqa: PLR0915, PLR0912
                         no_window=True
                     )
 
-                    exifs = [ex for (_new_fn, ex) in preview.values()]
-                    # Write to CSV
+                    _, exif0 = next(iter(preview.values()))
+                    fields = ["filename"] + list(asdict(exif0).keys())
+                   # Write to CSV
                     with open(output_filename, 'w', newline='') as csvfile:
-                        writer = csv.DictWriter(csvfile, fieldnames=asdict(exifs[0]).keys())
+                        writer = csv.DictWriter(csvfile, fieldnames=fields)
                         writer.writeheader()
-                        for ex in exifs:
-                            writer.writerow(asdict(ex))
+                        for filename, (_, ex) in preview.items():
+                            d = asdict(ex)
+                            d['filename'] = filename
+                            writer.writerow(d)
                     continue
                 elif event == TableRightClickCommand.copy_org_filename.value:
                     text = '\n'.join(f"{table_data[i][0]}" for i in values['-TABLE-'])
