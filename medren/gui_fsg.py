@@ -248,9 +248,9 @@ def main():  # noqa: PLR0915, PLR0912
         window[key].update(loaded_values[key])
     # window['inputs'].Widget.select_set(0)
 
-    renamer, preview = None, {}
+    renamer = None
+    data = {}
     table_data = []
-    preview = []
 
     while True:
         event, values = window.read()
@@ -259,6 +259,7 @@ def main():  # noqa: PLR0915, PLR0912
         profile_name = values.get('profile', DEFAULT_PROFILE_NAME)
         # input_paths = values['inputs']
         input_paths = window['inputs'].Values
+        selected = values['-TABLE-']
 
         if event == '-VERSION-':
             sg.popup(f'MedRen - The Media Renamer v{__version__}. By Idan Miara',
@@ -352,101 +353,104 @@ def main():  # noqa: PLR0915, PLR0912
             window['inputs'].update([])
             # window['inputs'].Widget.select_set(0)
             window['-TABLE-'].update(table_data)
-            preview = {}
+            data = {}
             renamer = None
 
         elif event == 'Preview':
-            if input_paths:
-                recursive = values['mode'] == 'recursive'
-                renamer = Renamer(
-                    prefix=values['prefix'],
-                    template=values['template'],
-                    datetime_format=values['datetime_format'],
-                    separator=values['separator'],
-                    normalize=values['normalize'],
-                    suffix=values['suffix'],
-                    backends=list(window['backends'].Values),
-                    recursive=recursive,
-                )
-                preview = renamer.generate_renames(input_paths, resolve_names=True)
-                table_data = [[orig_fn, new_fn, ex.dt, ex.t_offset, ex.make, ex.model, ex.backend]
-                              for orig_fn, (new_fn, ex) in preview.items()]
-                if not values['org_full_path']:
-                    for item in table_data:
-                        item[0] = Path(item[0]).name
-                window['-TABLE-'].update(values=table_data)
-                window['-ITEMS-FOUND-'].update(len(table_data))
+            if not input_paths:
+                continue
+            recursive = values['mode'] == 'recursive'
+            renamer = Renamer(
+                prefix=values['prefix'],
+                template=values['template'],
+                datetime_format=values['datetime_format'],
+                separator=values['separator'],
+                normalize=values['normalize'],
+                suffix=values['suffix'],
+                backends=list(window['backends'].Values),
+                recursive=recursive,
+            )
+            data = renamer.generate_renames(input_paths, resolve_names=True)
+            table_data = [[orig_fn, new_fn, ex.dt, ex.t_offset, ex.make, ex.model, ex.backend]
+                          for orig_fn, (new_fn, ex) in data.items()]
+            if not values['org_full_path']:
+                for item in table_data:
+                    item[0] = Path(item[0]).name
+            window['-TABLE-'].update(values=table_data)
+            window['-ITEMS-FOUND-'].update(len(table_data))
 
         elif event == 'Rename':
-            if preview and renamer:
+            if data and renamer:
                 log_filename = datetime.datetime.now().strftime(values['datetime_format']) + '.log'
-                renamer.apply_rename(preview, logfile=MEDREN_DIR / 'logs' / log_filename)
+                renamer.apply_rename(data, logfile=MEDREN_DIR / 'logs' / log_filename)
                 sg.popup('Renaming complete!')
                 window['-TABLE-'].update([])
             else:
                 sg.popup('Nothing to rename. Please preview first.')
 
-        elif event == '-TABLE-::DoubleClick':
-            all_filenames = list(preview.keys())
-            selected = values['-TABLE-']
-            if selected:
-                filename = all_filenames[selected[0]]
-                open_with_default_app(filename)
-                continue
-        elif event in table_right_click_items:
-            if event == TableRightClickCommand.select_all.value:
-                all_indices = list(range(len(preview)))
-                window['-TABLE-'].update(select_rows=all_indices)
-                continue
-            elif event == TableRightClickCommand.inverse_selection.value:
-                current_selection = values['-TABLE-']
-                all_indices = set(range(len(preview)))
-                new_selection = sorted(all_indices - set(current_selection))
-                window['-TABLE-'].update(select_rows=new_selection)
-                continue
-            if values['-TABLE-']:
-                if event == TableRightClickCommand.open_file.value:
-                    all_filenames = list(preview.keys())
-                    filenames = [all_filenames[i] for i in values['-TABLE-']]
-                    count = len(filenames)
-                    if count <= 5 or sg.popup_yes_no(f'Would you like to open the {count} selected files?', title=f'Open {count} files'):
-                        for filename in filenames:
-                            open_with_default_app(filename)
-                    continue
-                elif event == TableRightClickCommand.save_exif_csv.value:
-                    # Open a "Save As" dialog for CSV file
-                    output_filename = sg.popup_get_file(
-                        'Save CSV As',
-                        save_as=True,
-                        file_types=(("CSV Files", "*.csv"),),
-                        default_extension=".csv",
-                        no_window=True
-                    )
-
-                    _, exif0 = next(iter(preview.values()))
-                    fields = ["filename"] + list(asdict(exif0).keys())
-                   # Write to CSV
-                    with open(output_filename, 'w', newline='') as csvfile:
-                        writer = csv.DictWriter(csvfile, fieldnames=fields)
-                        writer.writeheader()
-                        for filename, (_, ex) in preview.items():
-                            d = asdict(ex)
-                            d['filename'] = filename
-                            writer.writerow(d)
-                    continue
-                elif event == TableRightClickCommand.copy_org_filename.value:
-                    text = '\n'.join(f"{table_data[i][0]}" for i in values['-TABLE-'])
-                elif event == TableRightClickCommand.copy_new_filename.value:
-                    text = '\n'.join(f"{table_data[i][1]}" for i in values['-TABLE-'])
-                elif event == TableRightClickCommand.copy_org_and_new_filenames.value:
-                    text = '\n'.join(f"{table_data[i][0]} -> {table_data[i][1]}" for i in values['-TABLE-'])
-                elif event == TableRightClickCommand.copy_csv.value:
-                    text = '\n'.join(f"{','.join([str(x) for x in table_data[i]])}" for i in values['-TABLE-'])
-                else:
-                    text = 'Unknown operation'
-                pyperclip.copy(text)
         elif event == InputsRightClickCommand.clear_inputs.value:
             window['inputs'].update([])
+
+        elif event == TableRightClickCommand.save_exif_csv.value:
+            # Open a "Save As" dialog for CSV file
+            output_filename = sg.popup_get_file(
+                'Save CSV As',
+                save_as=True,
+                file_types=(("CSV Files", "*.csv"),),
+                default_extension=".csv",
+                no_window=True
+            )
+
+            _, exif0 = next(iter(data.values()))
+            fields = ["filename"] + list(asdict(exif0).keys())
+           # Write to CSV
+            with open(output_filename, 'w', newline='') as csvfile:
+                writer = csv.DictWriter(csvfile, fieldnames=fields)
+                writer.writeheader()
+                for filename, (_, ex) in data.items():
+                    d = asdict(ex)
+                    d['filename'] = filename
+                    writer.writerow(d)
+
+        elif event == TableRightClickCommand.select_all.value:
+            all_indices = list(range(len(data)))
+            window['-TABLE-'].update(select_rows=all_indices)
+
+        elif event == TableRightClickCommand.inverse_selection.value:
+            all_indices = set(range(len(data)))
+            new_selection = sorted(all_indices - set(selected))
+            window['-TABLE-'].update(select_rows=new_selection)
+
+        if event == '-TABLE-::DoubleClick':
+            if not selected:
+                continue
+            all_filenames = list(data.keys())
+            filename = all_filenames[selected[0]]
+            open_with_default_app(filename)
+
+        elif event in table_right_click_items:
+            if not selected:
+                continue
+            if event == TableRightClickCommand.open_file.value:
+                all_filenames = list(data.keys())
+                filenames = [all_filenames[i] for i in selected]
+                count = len(filenames)
+                if count <= 5 or sg.popup_yes_no(f'Would you like to open the {count} selected files?', title=f'Open {count} files'):
+                    for filename in filenames:
+                        open_with_default_app(filename)
+                continue
+            elif event == TableRightClickCommand.copy_org_filename.value:
+                text = '\n'.join(f"{table_data[i][0]}" for i in selected)
+            elif event == TableRightClickCommand.copy_new_filename.value:
+                text = '\n'.join(f"{table_data[i][1]}" for i in selected)
+            elif event == TableRightClickCommand.copy_org_and_new_filenames.value:
+                text = '\n'.join(f"{table_data[i][0]} -> {table_data[i][1]}" for i in selected)
+            elif event == TableRightClickCommand.copy_csv.value:
+                text = '\n'.join(f"{','.join([str(x) for x in table_data[i]])}" for i in selected)
+            else:
+                text = 'Unknown operation'
+            pyperclip.copy(text)
+
         elif event in backends_right_click_items:
             if event == BackendsRightClickCommand.backend_reset.value:
                 backends = list(available_backends)
